@@ -11,13 +11,13 @@
     // import { reactive, effect } from '/node_modules/@vue/reactivity/dist/reactivity.esm-browser.js'
     import { reactive, effect } from './reactivity.js';
 
-    const state = reactive({ name: '张三', age: 12 });
-    effect(() => {
-      app.innerHTML = state.name + state.age
+    const state = reactive({ name: '张三', age: 12, flag: true });
+    const runner = effect(() => {
+      app.innerHTML = state.flag ? state.name : state.age;
     })
 
       setTimeout(() => {
-        state.name = '李四'
+        state.flag = false
       }, 2000)
   </script>
 </body>
