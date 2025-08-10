@@ -154,12 +154,112 @@ function createReactiveObj(target) {
   reactiveMap.set(target, proxy);
   return proxy;
 }
+function toReactive(value) {
+  return isObject(value) ? reactive(value) : value;
+}
+
+// packages/reactivity/src/ref.ts
+function ref(value) {
+  return createRef(value);
+}
+function createRef(value) {
+  return new RefImpl(value);
+}
+var RefImpl = class {
+  constructor(rawValue) {
+    this.rawValue = rawValue;
+    this.__v_isRef = true;
+    // 保存值
+    this.dep = /* @__PURE__ */ new Set();
+    this._value = toReactive(rawValue);
+  }
+  get value() {
+    trackRefValue(this);
+    return this._value;
+  }
+  set value(newValue) {
+    if (newValue !== this.rawValue) {
+      this._value = newValue;
+      this.rawValue = newValue;
+      triggerRefValue(this);
+    }
+  }
+};
+function trackRefValue(ref2) {
+  if (activeEffect) {
+    trackEffect(
+      activeEffect,
+      ref2.dep = createDep(() => ref2.dep = void 0, "undefined")
+    );
+  }
+}
+function triggerRefValue(ref2) {
+  let dep = ref2.dep;
+  if (dep) {
+    triggerEffects(dep);
+  }
+}
+var ObjectRefImpl = class {
+  constructor(_object, _key) {
+    this._object = _object;
+    this._key = _key;
+    this.__v_isRef = true;
+    // ref标识
+    this.dep = /* @__PURE__ */ new Set();
+  }
+  get value() {
+    return this._object[this._key];
+  }
+  set value(newValue) {
+    this._object[this._key] = newValue;
+  }
+};
+function isRef(ref2) {
+  return !!ref2.__v_isRef;
+}
+function toRef(object, key) {
+  return new ObjectRefImpl(object, key);
+}
+function toRefs(object) {
+  const ret = {};
+  for (const key in object) {
+    ret[key] = toRef(object, key);
+  }
+  return ret;
+}
+function proxyRefs(object) {
+  return new Proxy(object, {
+    get(target, key, receiver) {
+      const res = Reflect.get(target, key, receiver);
+      return isRef(res) ? res.value : res;
+    },
+    set(target, key, value, receiver) {
+      const oldValue = target[key];
+      if (isRef(oldValue)) {
+        oldValue.value = value;
+      } else {
+        Reflect.set(target, key, value, receiver);
+      }
+      return true;
+    }
+  });
+}
+function unRef(ref2) {
+  return isRef(ref2) ? ref2.value : ref2;
+}
 export {
   ReactiveFlags,
   activeEffect,
   effect,
+  isRef,
+  proxyRefs,
   reactive,
+  ref,
+  toReactive,
+  toRef,
+  toRefs,
   trackEffect,
-  triggerEffects
+  triggerEffects,
+  unRef
 };
 //# sourceMappingURL=reactivity.js.map
