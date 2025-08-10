@@ -9,19 +9,22 @@
   <div id="app"></div>
   <script type="module">
     // import { reactive, effect, ref, toRef } from '/node_modules/@vue/reactivity/dist/reactivity.esm-browser.js'
-    import { reactive, effect, ref, toRef } from './reactivity.js';
-
-    const state = reactive({ name: '张三', age: 12, flag: true, address: { n: 111 } });
-    const name = toRef(state, 'name');
-    console.log(name, 'name')
-    effect(() => {
-      app.innerHTML = name.value
+    import { reactive, effect, ref, toRef, computed } from './reactivity.js';
+    const state = reactive({ name: 'test' })
+    const aliasName = computed(() => {
+      console.log('runner')
+      return '-' + state.name + '-'
     })
-   
-   setTimeout(() => {
-     name.value = '李四'
-     console.log(state)
-   }, 2000)
+
+
+    effect(() => {
+      console.log(aliasName.value)
+    })
+
+    
+    setTimeout(() => {
+      state.name = 'test2'
+    }, 2000)
   </script>
 </body>
 </html>

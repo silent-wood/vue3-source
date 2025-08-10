@@ -1,13 +1,11 @@
 import { isObject } from "@vue/shared"
 import { mutableHandler } from "./baseHandler"
+import { ReactiveFlags } from "./constants"
 
 // 缓存代理过的对象， target => proxy
 // WeakMap防止内存泄漏，同时属性必须是对象
 const reactiveMap = new WeakMap()
 
-export const enum ReactiveFlags {
-  IS_REACTIVE = '__v_isReactive'
-}
 
 export const reactive = target => {
   return createReactiveObj(target)

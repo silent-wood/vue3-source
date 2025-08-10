@@ -1,5 +1,5 @@
 
-import { ReactiveFlags } from "./reactive";
+import { ReactiveFlags } from "./constants";
 import { track, trigger } from "./reactiveEffect";
 import { reactive } from './reactive';
 import { isObject } from '@vue/shared';

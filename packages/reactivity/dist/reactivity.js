@@ -2,6 +2,9 @@
 var isObject = (value) => {
   return value !== null && typeof value === "object";
 };
+var isFunction = (value) => {
+  return typeof value === "function";
+};
 
 // packages/reactivity/src/effect.ts
 var activeEffect = void 0;
@@ -27,11 +30,20 @@ var ReactiveEffect = class {
     this._depsLength = 0;
     this._running = 0;
     // 是否正在执行
+    this._dirtyLevel = 4 /* Dirty */;
+    // 默认是脏的
     this.deps = [];
     // [new Set(), new Set] 记录effect依赖的属性列表
     this.active = true;
   }
+  get dirty() {
+    return this._dirtyLevel === 4 /* Dirty */;
+  }
+  set dirty(value) {
+    this._dirtyLevel = value ? 4 /* Dirty */ : 0 /* NoDirty */;
+  }
   run() {
+    this._dirtyLevel = 0 /* NoDirty */;
     if (!this.active) return this.fn();
     let lastEffect = activeEffect;
     try {
@@ -71,6 +83,9 @@ function trackEffect(effect2, dep) {
 }
 function triggerEffects(dep) {
   for (const effect2 of dep.keys()) {
+    if (effect2._dirtyLevel < 4 /* Dirty */) {
+      effect2._dirtyLevel = 4 /* Dirty */;
+    }
     if (!effect2._running) {
       if (effect2.scheduler) {
         effect2.scheduler();
@@ -144,10 +159,6 @@ var mutableHandler = {
 
 // packages/reactivity/src/reactive.ts
 var reactiveMap = /* @__PURE__ */ new WeakMap();
-var ReactiveFlags = /* @__PURE__ */ ((ReactiveFlags2) => {
-  ReactiveFlags2["IS_REACTIVE"] = "__v_isReactive";
-  return ReactiveFlags2;
-})(ReactiveFlags || {});
 var reactive = (target) => {
   return createReactiveObj(target);
 };
@@ -253,9 +264,48 @@ function proxyRefs(object) {
 function unRef(ref2) {
   return isRef(ref2) ? ref2.value : ref2;
 }
+
+// packages/reactivity/src/computed.ts
+var ComputedRefImpl = class {
+  constructor(getter, setter) {
+    this.setter = setter;
+    this.effect = new ReactiveEffect(
+      () => getter(this._value),
+      // 用户传入的getter函数
+      () => {
+        triggerRefValue(this);
+      }
+    );
+  }
+  get value() {
+    if (this.effect.dirty) {
+      this._value = this.effect.run();
+      trackRefValue(this);
+    }
+    return this._value;
+  }
+  set value(newValue) {
+    this.setter(newValue);
+  }
+};
+function computed(getterOrOption) {
+  let onlyGetter = isFunction(getterOrOption);
+  let getter, setter;
+  if (onlyGetter) {
+    getter = getterOrOption;
+    setter = () => {
+      console.warn("no setter");
+    };
+  } else {
+    getter = getterOrOption.get;
+    setter = getterOrOption.set;
+  }
+  return new ComputedRefImpl(getter, setter);
+}
 export {
-  ReactiveFlags,
+  ReactiveEffect,
   activeEffect,
+  computed,
   effect,
   isRef,
   proxyRefs,
@@ -265,7 +315,9 @@ export {
   toRef,
   toRefs,
   trackEffect,
+  trackRefValue,
   triggerEffects,
+  triggerRefValue,
   unRef
 };
 //# sourceMappingURL=reactivity.js.map
