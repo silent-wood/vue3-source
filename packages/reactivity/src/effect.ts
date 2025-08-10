@@ -66,9 +66,6 @@ export function trackEffect(effect, dep) {
 			effect._depsLength++;
 		}
 	}
-	// dep.set(effect, effect._trackId);
-	// // 让effect和dep进行关联
-	// effect.deps[effect._depsLength++] = dep
 }
 
 export function triggerEffects(dep) {
@@ -87,11 +84,11 @@ export function effect(fn, options) {
 		_effect.run()
 	});
 	_effect.run();
-	// if (options) {
-	// 	Object.assign(_effect, options); // 用户自己传递的配置
-	// }
-	// const runner = _effect.run.bind(_effect);
-	// runner.effect = _effect;
-	// // 默认让用户的函数执行一次
-	// return runner
+	if (options) {
+		Object.assign(_effect, options); // 用户自己传递的配置
+	}
+	const runner = _effect.run.bind(_effect);
+	runner.effect = _effect;
+	// 默认让用户的函数执行一次
+	return runner
 }
