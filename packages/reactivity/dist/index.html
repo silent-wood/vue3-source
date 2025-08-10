@@ -11,14 +11,24 @@
     // import { reactive, effect } from '/node_modules/@vue/reactivity/dist/reactivity.esm-browser.js'
     import { reactive, effect } from './reactivity.js';
 
-    const state = reactive({ name: '张三', age: 12, flag: true });
-    const runner = effect(() => {
-      app.innerHTML = state.flag ? state.name : state.age;
+    const state = reactive({ name: '张三', age: 12, flag: true, address: { n: 111 } });
+    effect(() => {
+      app.innerHTML = state.address.n;
     })
+    setTimeout(() => {
+      state.address.n = 501
+    }, 2000)
+    // const runner = effect(() => {
+    //   app.innerHTML = state.flag ? state.name : state.age;
+    // }, {
+    //   scheduler: () => {
+    //     console.log('自己调度执行')
+    //   }
+    // })
 
-      setTimeout(() => {
-        state.flag = false
-      }, 2000)
+      // setTimeout(() => {
+      //   state.flag = false
+      // }, 2000)
   </script>
 </body>
 </html>

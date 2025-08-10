@@ -24,9 +24,11 @@ var ReactiveEffect = class {
     this.scheduler = scheduler;
     this._trackId = 0;
     // 用于记录当前effect执行了几次，防止一个属性多次访问，只收集一次
+    this._depsLength = 0;
+    this._running = 0;
+    // 是否正在执行
     this.deps = [];
     // [new Set(), new Set] 记录effect依赖的属性列表
-    this._depsLength = 0;
     this.active = true;
   }
   run() {
@@ -35,8 +37,10 @@ var ReactiveEffect = class {
     try {
       activeEffect = this;
       preCleanupEffect(this);
+      this._running++;
       return this.fn();
     } finally {
+      this._running--;
       postCleanupEffect(this);
       activeEffect = lastEffect;
     }
@@ -67,8 +71,10 @@ function trackEffect(effect2, dep) {
 }
 function triggerEffects(dep) {
   for (const effect2 of dep.keys()) {
-    if (effect2.scheduler) {
-      effect2.scheduler();
+    if (!effect2._running) {
+      if (effect2.scheduler) {
+        effect2.scheduler();
+      }
     }
   }
 }
@@ -114,7 +120,11 @@ var mutableHandler = {
     if (key === "__v_isReactive" /* IS_REACTIVE */) return true;
     target["__v_isReactive" /* IS_REACTIVE */] = true;
     track(target, key);
-    return Reflect.get(target, key, receiver);
+    const result = Reflect.get(target, key, receiver);
+    if (isObject(result)) {
+      return reactive(result);
+    }
+    return result;
   },
   set(target, key, val, receiver) {
     let oldVal = target[key];

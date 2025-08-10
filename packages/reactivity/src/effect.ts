@@ -16,8 +16,9 @@ function postCleanupEffect(effect) {
 
 class ReactiveEffect {
 	_trackId = 0; // 用于记录当前effect执行了几次，防止一个属性多次访问，只收集一次
-	deps = [] // [new Set(), new Set] 记录effect依赖的属性列表
 	_depsLength = 0
+  _running = 0 // 是否正在执行
+	deps = [] // [new Set(), new Set] 记录effect依赖的属性列表
 	public active = true // 创建的effect是响应式的
 	constructor(public fn, public scheduler) { }
 	run() {
@@ -27,9 +28,11 @@ class ReactiveEffect {
 			activeEffect = this
 			// 在执行之前清理effect，运行run的时候重新收集一次依赖
 			preCleanupEffect(this);
+			this._running++;
 			// 当函数执行的时候需要将对应的effect和属性关联起来
 			return this.fn() // 依赖收集
 		} finally {
+			this._running--;
 			postCleanupEffect(this);
 			activeEffect = lastEffect;
 		}
@@ -70,8 +73,10 @@ export function trackEffect(effect, dep) {
 
 export function triggerEffects(dep) {
 	for (const effect of dep.keys()) {
-		if (effect.scheduler) {
-			effect.scheduler();
+		if (!effect._running) {
+			if (effect.scheduler) {
+				effect.scheduler();
+			}
 		}
 	}
 }
