@@ -87,6 +87,7 @@ function trackEffect(effect2, dep) {
       effect2._depsLength++;
     }
   }
+  console.log(effect2, dep, "111");
 }
 function triggerEffects(dep) {
   for (const effect2 of dep.keys()) {
@@ -122,16 +123,18 @@ var createDep = (cleanup, name) => {
   return dep;
 };
 function track(target, key) {
-  let depsMap = targetMap.get(target);
-  if (!depsMap) targetMap.set(target, depsMap = /* @__PURE__ */ new Map());
-  let dep = depsMap.get(key);
-  if (!dep) {
-    depsMap.set(
-      key,
-      dep = createDep(() => depsMap.delete(key), key)
-    );
+  if (activeEffect) {
+    let depsMap = targetMap.get(target);
+    if (!depsMap) targetMap.set(target, depsMap = /* @__PURE__ */ new Map());
+    let dep = depsMap.get(key);
+    if (!dep) {
+      depsMap.set(
+        key,
+        dep = createDep(() => depsMap.delete(key), key)
+      );
+    }
+    trackEffect(activeEffect, dep);
   }
-  trackEffect(activeEffect, dep);
 }
 function trigger(target, key, val, oldVal) {
   let depsMap = targetMap.get(target);
@@ -146,7 +149,6 @@ var mutableHandler = {
   // 原始对象，属性，代理对象
   get(target, key, receiver) {
     if (key === "__v_isReactive" /* IS_REACTIVE */) return true;
-    target["__v_isReactive" /* IS_REACTIVE */] = true;
     track(target, key);
     const result = Reflect.get(target, key, receiver);
     if (isObject(result)) {
@@ -171,9 +173,9 @@ var reactive = (target) => {
 };
 function createReactiveObj(target) {
   if (!isObject(target)) return target;
+  if (target["__v_isReactive" /* IS_REACTIVE */]) return target;
   let existProxy = reactiveMap.get(target);
   if (existProxy) return existProxy;
-  if (target["__v_isReactive" /* IS_REACTIVE */]) return target;
   const proxy = new Proxy(target, mutableHandler);
   reactiveMap.set(target, proxy);
   return proxy;

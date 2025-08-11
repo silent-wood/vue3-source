@@ -10,13 +10,12 @@
   <script type="module">
     // import { reactive, effect, ref, toRef, watch } from '/node_modules/vue//dist/vue.esm-browser.js'
     import { reactive, effect, ref, toRef, computed, watch } from './reactivity.js';
-    const state = reactive({ name: 'test', addres: {n : 1} })
+    const state = reactive({ name: 'test', address: {n : 1} })
     watch(state, (newVal, oldVal) => {
       console.log(newVal, oldVal)
-    }, {
-      deep: 1
     })
     setTimeout(() => {
+      debugger
       state.address.n = 2
     }, 1000)
   </script>

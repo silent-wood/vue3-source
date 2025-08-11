@@ -87,6 +87,7 @@ export function trackEffect(effect, dep) {
 			effect._depsLength++;
 		}
 	}
+	console.log(effect, dep, '111')
 }
 
 export function triggerEffects(dep) {

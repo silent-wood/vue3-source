@@ -15,21 +15,24 @@ export const createDep = (cleanup, name) => {
 // Map1: { name: new map() }
 
 export function track(target, key) {
-  // 获取当前对象是否已经收集过依赖
-  let depsMap = targetMap.get(target)
-  // 如果没有收集，就给当前对象创建一个map，同时放到缓存对象中
-  if (!depsMap) targetMap.set(target, (depsMap = new Map()))
-  // 获取当前对象的当前属性是否有收集依赖
-  let dep = depsMap.get(key)
-  // 如果没有收集，给当前属性，创建一个空的Set,最终dep就是一个属性保存的effect集合
-  if(!dep) {
-    depsMap.set(
-      key, 
-      (dep = createDep(() => depsMap.delete(key), key))
-    );
+  // activeEffect 有这个属性 说明这个key是在effect中访问的，没有说明在effect之外访问的不用进行收集
+  if (activeEffect) {
+    // 获取当前对象是否已经收集过依赖
+    let depsMap = targetMap.get(target)
+    // 如果没有收集，就给当前对象创建一个map，同时放到缓存对象中
+    if (!depsMap) targetMap.set(target, (depsMap = new Map()))
+    // 获取当前对象的当前属性是否有收集依赖
+    let dep = depsMap.get(key)
+    // 如果没有收集，给当前属性，创建一个空的Set,最终dep就是一个属性保存的effect集合
+    if (!dep) {
+      depsMap.set(
+        key,
+        (dep = createDep(() => depsMap.delete(key), key))
+      );
+    }
+    // effect和dep进行关联
+    trackEffect(activeEffect, dep);
   }
-  // effect和dep进行关联
-  trackEffect(activeEffect, dep);
 }
 // Map: { obj: Map1 }
 // Map1: { name: new map() }
@@ -38,6 +41,6 @@ export function trigger(target, key, val, oldVal) {
   let depsMap = targetMap.get(target)
   if (!depsMap) return
   let dep = depsMap.get(key)
-  if(!dep) return
+  if (!dep) return
   triggerEffects(dep)
 }

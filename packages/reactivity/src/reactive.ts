@@ -15,6 +15,7 @@ export const reactive = target => {
 function createReactiveObj(target) {
   // reactive只能处理对象类型的数据
   if (!isObject(target)) return target
+  if (target[ReactiveFlags.IS_REACTIVE]) return target
   /**
    * 如果已经代理过，直接返回代理过的对象，防止重复代理同一个对象
    * 从缓存的weakMap中取值
@@ -32,8 +33,7 @@ function createReactiveObj(target) {
    * const state = reactive(obj)
    * const state1= reactive(state)
    *  */
-   if (target[ReactiveFlags.IS_REACTIVE]) return target
-
+   
   // 生成一个代理对象并返回
   const proxy = new Proxy(target, mutableHandler)
   reactiveMap.set(target, proxy)
