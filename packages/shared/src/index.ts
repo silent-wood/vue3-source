@@ -5,3 +5,7 @@ export const isObject = (value: unknown) => {
 export const isFunction = (value: unknown) => {
   return typeof value === "function";
 }
+
+export const isNumber = (value: unknown) => {
+  return typeof value === "number";
+}

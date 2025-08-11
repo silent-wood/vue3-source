@@ -55,7 +55,11 @@ export class ReactiveEffect {
 		}
 	}
 	stop() {
-		this.active = false
+		if (this.active) {
+			this.active = false;
+			preCleanupEffect(this);
+			postCleanupEffect(this);
+		}
 	}
 }
 

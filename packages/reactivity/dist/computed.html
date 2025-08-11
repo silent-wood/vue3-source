@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module">
+    // import { reactive, effect, ref, toRef, watch } from '/node_modules/vue/reactivity/dist/reactivity.esm-browser.js'
+    // import { reactive, effect, ref, toRef, computed } from './reactivity.js';
+    const state = reactive({ name: 'test' })
+    const aliasName = computed(() => {
+      console.log('runner')
+      return '-' + state.name + '-'
+    })
+
+
+    effect(() => {
+      console.log(aliasName.value)
+    })
+
+    
+    setTimeout(() => {
+      state.name = 'test2'
+    }, 2000)
+  </script>
+</body>
+</html>
