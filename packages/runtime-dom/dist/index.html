@@ -23,8 +23,35 @@
      * 3. 如果第三个参数是数组，那么只能是子节点h('span', { a: 1 }, [h('span', 'hello')])
      * 4.超过三个参数，从第三个开始都是子节点
     */
-    let ele1 = h('div', '111')
-    let ele2 = h('div', [h('span', '222')])
+    let ele1 = h('div', [
+      h('h1', { key: 'a'}, 'a'),
+      h('h1', { key: 'b'}, 'b'),
+      h('h1', { key: 'c'}, 'c'),
+      h('h1', { key: 'q'}, 'q'),
+      h('h1', { key: 'd'}, 'd'),
+      h('h1', { key: 'e'}, 'e'),
+      h('h1', { key: 'f'}, 'f'),
+      h('h1', { key: 'g'}, 'g')
+    ])
+
+    let ele2 = h('div', [
+      h('h1', { key: 'a'}, 'a'),
+      h('h1', { key: 'b'}, 'b'),
+      h('h1', { key: 'e'}, 'e'),
+      h('h1', { key: 'c'}, 'c'),
+      h('h1', { key: 'd'}, 'd'),
+      h('h1', { key: 'h'}, 'h'),
+      h('h1', { key: 'f'}, 'f'),
+      h('h1', { key: 'g'}, 'g')
+    ])
+
+    let ele3 = h('div', [
+      h('h1', { key: 'd'}, 'd'),
+      h('h1', { key: 'e'}, 'e'),
+      h('h1', { key: 'b'}, 'b'),
+      h('h1', { key: 'c'}, 'c'),
+    ])
+
     render(ele1, app)
 
     setTimeout(() => {

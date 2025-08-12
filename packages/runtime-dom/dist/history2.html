@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module">
+    // import { h } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
+
+    import { render, h } from './runtime-dom.js'
+    // let ele = h('h1', { style: { color: 'red'}}, [h('span', 'hello'), h('span', 'world')])
+    // console.log(ele);
+    // render(ele, app)
+    /** 
+     * h的语法格式，标准格式h(类型，属性，子节点)
+     * 1.一个参数，只有类型
+     * 1.两个参数，第二个可能是属性，也可能是虚拟节点h('span', { a: 1 }), h('span', 'hello')
+     *   如果第二个参数是数组，那么只能是子节点h('span', [h('span', 'hello')])
+     * 2.三个参数，第二个是属性,且只能是对象，第三个是虚拟节点h('span', { a: 1 }, 'hello')
+     * 3. 如果第三个参数是数组，那么只能是子节点h('span', { a: 1 }, [h('span', 'hello')])
+     * 4.超过三个参数，从第三个开始都是子节点
+    */
+    let ele1 = h('div', '111')
+    let ele2 = h('div', [h('span', '222')])
+    render(ele1, app)
+
+    setTimeout(() => {
+      render(ele2, app)
+    }, 2000)
+  </script>
+</body>
+</html>
