@@ -4,6 +4,16 @@ export function isVnode(value) {
   return !!value?.__v_isVnode
 }
 
+/**
+ * 判断两个节点是否相同
+ * @param n1 旧节点
+ * @param n2 新节点
+ * @returns 
+ */
+export function isSameVnode(n1, n2) {
+  return n1.type === n2.type && n1.key === n2.key
+}
+
 // 按位或(|), 二进制有一个为1就是1
 // let a = 5 // 转换成2进制 0101
 // a = a | 3 // 3的二进制是 0011 => 等同于 按位与赋值 a |= 3
