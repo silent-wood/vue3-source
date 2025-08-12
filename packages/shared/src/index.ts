@@ -12,4 +12,7 @@ export const isNumber = (value: unknown) => {
 
 export const isString = value => typeof value === 'string';
 
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+export const hasOwn = (val, key) => hasOwnProperty.call(val, key);
+
 export * from './shapeFlags'

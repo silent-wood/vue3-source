@@ -1,8 +1,9 @@
 import { ShapeFlags } from "@vue/shared";
 import { Fragment, isSameVnode, Text } from "./createVnode";
 import getSequence from "./seq";
-import { reactive, ReactiveEffect } from "@vue/reactivity";
+import { ReactiveEffect } from "@vue/reactivity";
 import { queueJob } from "./scheduler";
+import { createComponentInstance, setupComponent } from "./component";
 
 export function createRenderer(renderOptions) {
     const {
@@ -287,56 +288,16 @@ export function createRenderer(renderOptions) {
     }
   }
 
-  /**
-   * 初始化组件属性
-   * @param instance 组件实例
-   * @param rawProps 原始props
-   */
-  const initProps = (instance, rawProps) => {
-    const props = {};
-    const attrs = {};
-    const propsOptions = instance.propsOptions || {}; // 用户在组件中定义的props
-    if (rawProps) {
-      for (const key in rawProps) {
-        if (key in propsOptions) {
-          props[key] = rawProps[key]; // props中的是响应式的，不需要用reactive,应该是shallowReactive
-        } else {
-          attrs[key] = rawProps[key];
-        }
-      }
-    }
-    instance.props = reactive(props);
-    instance.attrs = attrs;
-  }
-
-  const mountComponent = (vnode, container, anchor) => {
-    // 组件可以基于自己的状态重新渲染 本质上就是effect
-    const { data = () => {}, render, props: propsOptions } = vnode.type;
-    const state = reactive(data()); // 组件状态
-
-    const instance = {
-      state, // 组件状态
-      subTree: null, // 子树
-      vnode, // 组件虚拟节点
-      isMounted: false, // 是否挂载完成
-      update: null, // 渲染函数
-      props: {},
-      attrs: {},
-      propsOptions,
-      component: null
-    }
-    // 组件的更新：n2.el = n1.el
-    // 组件更新：n2.component.el = n1.component.el
-    initProps(instance, vnode.props);
-
-    const componentUpdateFn = () => {
+  const setupRenderEffect = (instance, container, anchor) => {
+    const { render } = instance;
+  const componentUpdateFn = () => {
       if (!instance.isMounted) { // 首次渲染
-        const subTree = render.call(state, state);
+        const subTree = render.call(instance.proxy, instance.proxy);
         patch(null, subTree, container, anchor);
         instance.subTree = subTree;
         instance.isMounted = true;
       } else {
-        const subTree = render.call(state, state); // 更新
+        const subTree = render.call(instance.proxy, instance.proxy); // 更新
         patch(instance.subTree, subTree, container, anchor);
         instance.subTree = subTree;
       }
@@ -347,6 +308,15 @@ export function createRenderer(renderOptions) {
     const update = (instance.update = () => effect.run());
     
     update();
+}
+
+  const mountComponent = (vnode, container, anchor) => {
+    // 1、创建组件实例
+    const instance = (vnode.component = createComponentInstance(vnode)); // 组件实例关联
+    // 2、给实例的属性赋值
+    setupComponent(instance)
+    // 3、创建一个effect，当组件更新时重新执行effect
+    setupRenderEffect(instance, container, anchor)
   }
 
   const processComponent = (n1, n2, container, anchor = null) => {

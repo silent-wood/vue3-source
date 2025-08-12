@@ -17,8 +17,7 @@ export function h(type, propsOrChildren?, children?) {
     return createVnode(type, null, propsOrChildren)
   } else {
     if (len > 3) { // h('div', { id: 'app'}, 'hello', 'world')
-      children = Array.from(arguments).slice(2)
-    console.log(children)
+      children = Array.from(arguments).slice(2);
     } else if (len === 3 && isVnode(children)) { // h('div', { id: 'app'}, h('span'))
       children = [children]
     }
