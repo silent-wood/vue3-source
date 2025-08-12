@@ -287,18 +287,47 @@ export function createRenderer(renderOptions) {
     }
   }
 
-  const mountComponent = (n2, container, anchor) => {
+  /**
+   * 初始化组件属性
+   * @param instance 组件实例
+   * @param rawProps 原始props
+   */
+  const initProps = (instance, rawProps) => {
+    const props = {};
+    const attrs = {};
+    const propsOptions = instance.propsOptions || {}; // 用户在组件中定义的props
+    if (rawProps) {
+      for (const key in rawProps) {
+        if (key in propsOptions) {
+          props[key] = rawProps[key]; // props中的是响应式的，不需要用reactive,应该是shallowReactive
+        } else {
+          attrs[key] = rawProps[key];
+        }
+      }
+    }
+    instance.props = reactive(props);
+    instance.attrs = attrs;
+  }
+
+  const mountComponent = (vnode, container, anchor) => {
     // 组件可以基于自己的状态重新渲染 本质上就是effect
-    const { data = () => {}, render } = n2.type;
+    const { data = () => {}, render, props: propsOptions } = vnode.type;
     const state = reactive(data()); // 组件状态
 
     const instance = {
       state, // 组件状态
       subTree: null, // 子树
-      vnode: n2, // 组件虚拟节点
+      vnode, // 组件虚拟节点
       isMounted: false, // 是否挂载完成
-      update: null // 渲染函数
+      update: null, // 渲染函数
+      props: {},
+      attrs: {},
+      propsOptions,
+      component: null
     }
+    // 组件的更新：n2.el = n1.el
+    // 组件更新：n2.component.el = n1.component.el
+    initProps(instance, vnode.props);
 
     const componentUpdateFn = () => {
       if (!instance.isMounted) { // 首次渲染

@@ -19,6 +19,9 @@
           age: 18
         }
       },
+      props: {
+        a: Number,
+      },
       render() {
         // setTimeout(() => {
         //   this.age++;
@@ -27,7 +30,7 @@
         return h('div', this.name + this.age)
       }
     }
-    render(h(VueComponent), app)
+    render(h(VueComponent, { a: 1, b: 2}), app)
   </script>
 </body>
 </html>

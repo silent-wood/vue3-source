@@ -535,22 +535,43 @@ function createRenderer(renderOptions2) {
       patchChildren(n1, n2, container);
     }
   };
-  const mountComponent = (n2, container, anchor) => {
+  const initProps = (instance, rawProps) => {
+    const props = {};
+    const attrs = {};
+    const propsOptions = instance.propsOptions || {};
+    if (rawProps) {
+      for (const key in rawProps) {
+        if (key in propsOptions) {
+          props[key] = rawProps[key];
+        } else {
+          attrs[key] = rawProps[key];
+        }
+      }
+    }
+    instance.props = reactive(props);
+    instance.attrs = attrs;
+  };
+  const mountComponent = (vnode, container, anchor) => {
     const { data = () => {
-    }, render: render3 } = n2.type;
+    }, render: render3, props: propsOptions } = vnode.type;
     const state = reactive(data());
     const instance = {
       state,
       // 组件状态
       subTree: null,
       // 子树
-      vnode: n2,
+      vnode,
       // 组件虚拟节点
       isMounted: false,
       // 是否挂载完成
-      update: null
+      update: null,
       // 渲染函数
+      props: {},
+      attrs: {},
+      propsOptions,
+      component: null
     };
+    initProps(instance, vnode.props);
     const componentUpdateFn = () => {
       if (!instance.isMounted) {
         const subTree = render3.call(state, state);
