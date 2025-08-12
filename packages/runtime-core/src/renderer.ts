@@ -1,5 +1,6 @@
 import { ShapeFlags } from "@vue/shared";
 import { isSameVnode } from "./createVnode";
+import getSequence from "./seq";
 
 export function createRenderer(renderOptions) {
     const {
@@ -97,7 +98,7 @@ export function createRenderer(renderOptions) {
   }
 
   /**
-   * diff算法
+   * diff算法, 全量diff(递归) 快速diff(靶向更新) -> 基于模版编译的
    * @param c1 老节点
    * @param c2 新节点
    * @param el 元素节点
@@ -157,6 +158,9 @@ export function createRenderer(renderOptions) {
       let s1 = i, s2 = i;
       // 使用新的节点做一个映射表
       const keyToNewIndexMap = new Map();
+      let toBePatched = e2 - s2 + 1; // 需要倒序插入的个数
+      const newIndexToOldMapIndex = new Array(toBePatched).fill(0);
+
       for(let i = s1; i <= e2; i++) {
         const vnode = c2[i];
         keyToNewIndexMap.set(vnode.key, i);
@@ -167,27 +171,33 @@ export function createRenderer(renderOptions) {
         if (newIndex === undefined) { // 老的有新的没有，删除
           unmount(vnode);
         } else { // 老的有新的也有，更新
+          newIndexToOldMapIndex[newIndex - s2] = i + 1;
           patch(vnode, c2[newIndex], el);
         }
       }
 
-      // 调整顺序,需要根据新的节点列表倒序插入
-      const toBePatched = e2 - s2 + 1; // 需要更新的节点数量
-      for(let i = toBePatched -1; i >= 0; i--) {
-        const newIndex = s2 + i;
-        const anchor = c2[newIndex + 1]?.el;
-        const vnode = c2[newIndex];
-
-        if (!c2[newIndex].el) { // 新增的元素
-          patch(null, c2[newIndex], el, anchor);
+      let increasingSeq = getSequence(newIndexToOldMapIndex);
+      let j = increasingSeq.length - 1; // 索引
+      for (let i = toBePatched - 1; i >= 0; i--) {
+        // 3 2 1 0
+        let newIndex = s2 + i; // h 对应的索引，找他的下一个元素作为参照物，来进行插入
+        let anchor = c2[newIndex + 1]?.el;
+        let vnode = c2[newIndex];
+        if (!vnode.el) {
+          // 新列表中新增的元素
+          patch(null, vnode, el, anchor); // 创建h插入
         } else {
-          hostInsert(vnode.el, el, anchor); // 倒序插入
+          if (i == increasingSeq[j]) {
+            j--; // 做了diff算法有的优化
+          } else {
+            hostInsert(vnode.el, el, anchor); // 接着倒序插入
+          }
         }
       }
     }
   }
 
-
+  
   const patchChildren = (n1, n2, el) => {
     // 比较子节点
     // children 只有三种情况 text array null
