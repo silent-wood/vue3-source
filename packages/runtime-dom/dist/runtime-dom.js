@@ -87,6 +87,12 @@ function patchProp(el, key, prevValue, nextValue) {
   }
 }
 
+// packages/shared/src/index.ts
+var isObject = (value) => {
+  return value !== null && typeof value === "object";
+};
+var isString = (value) => typeof value === "string";
+
 // packages/runtime-core/src/renderer.ts
 function createRenderer(renderOptions2) {
   const {
@@ -135,6 +141,54 @@ function createRenderer(renderOptions2) {
   };
 }
 
+// packages/runtime-core/src/createVnode.ts
+function isVnode(value) {
+  return !!value?.__v_isVnode;
+}
+function createVnode(type, props, children) {
+  const shapeFlag = isString(type) ? 1 /* ELEMENT */ : 0;
+  const vnode = {
+    __v_isVnode: true,
+    type,
+    props,
+    children,
+    key: props?.key,
+    el: null,
+    // 虚拟节点对应的真实节点
+    shapeFlag
+  };
+  if (Array.isArray(children)) {
+    vnode.shapeFlag |= 16 /* ARRAY_CHILDREN */;
+  } else {
+    children = String(children);
+    vnode.shapeFlag |= 8 /* TEXT_CHILDREN */;
+  }
+  return vnode;
+}
+
+// packages/runtime-core/src/h.ts
+function h(type, propsOrChildren, children) {
+  let len = arguments.length;
+  if (len === 2) {
+    if (isObject(propsOrChildren) && !Array.isArray(propsOrChildren)) {
+      if (isVnode(propsOrChildren)) {
+        return createVnode(type, null, [propsOrChildren]);
+      } else {
+        return createVnode(type, propsOrChildren, null);
+      }
+    }
+    return createVnode(type, null, propsOrChildren);
+  } else {
+    if (len > 3) {
+      children = Array.from(arguments).slice(2);
+      console.log(children);
+    } else if (len === 3 && isVnode(children)) {
+      children = [children];
+    }
+    return createVnode(type, propsOrChildren, children);
+  }
+}
+
 // packages/runtime-dom/src/index.ts
 var renderOptions = Object.assign({ patchProp }, nodeOps);
 var render = (vnode, container) => {
@@ -142,6 +196,9 @@ var render = (vnode, container) => {
 };
 export {
   createRenderer,
+  createVnode,
+  h,
+  isVnode,
   render
 };
 //# sourceMappingURL=runtime-dom.js.map

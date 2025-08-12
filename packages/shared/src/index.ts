@@ -10,4 +10,6 @@ export const isNumber = (value: unknown) => {
   return typeof value === "number";
 }
 
+export const isString = value => typeof value === 'string';
+
 export * from './shapeFlags'
