@@ -94,6 +94,8 @@ var isObject = (value) => {
 var isString = (value) => typeof value === "string";
 
 // packages/runtime-core/src/createVnode.ts
+var Text = Symbol("Text");
+var Fragment = Symbol("Fragment");
 function isVnode(value) {
   return !!value?.__v_isVnode;
 }
@@ -101,7 +103,7 @@ function isSameVnode(n1, n2) {
   return n1.type === n2.type && n1.key === n2.key;
 }
 function createVnode(type, props, children) {
-  const shapeFlag = isString(type) ? 1 /* ELEMENT */ : 0;
+  const shapeFlag = isString(type) ? 1 /* ELEMENT */ : isObject(type) ? 4 /* STATEFUL_COMPONENT */ : 0;
   const vnode = {
     __v_isVnode: true,
     type,
@@ -163,6 +165,186 @@ function getSequence(arr) {
   return result;
 }
 
+// packages/reactivity/src/effect.ts
+var activeEffect = void 0;
+function preCleanupEffect(effect) {
+  effect._depsLength = 0;
+  effect._trackId++;
+}
+function postCleanupEffect(effect) {
+  if (effect.deps.length > effect._depsLength) {
+    for (let i = effect._depsLength; i < effect.deps.length; i++) {
+      cleanDepEffect(effect.deps[i], effect);
+    }
+    effect.deps.length = effect._depsLength;
+  }
+}
+var ReactiveEffect = class {
+  // 创建的effect是响应式的
+  constructor(fn, scheduler) {
+    this.fn = fn;
+    this.scheduler = scheduler;
+    this._trackId = 0;
+    // 用于记录当前effect执行了几次，防止一个属性多次访问，只收集一次
+    this._depsLength = 0;
+    this._running = 0;
+    // 是否正在执行
+    this._dirtyLevel = 4 /* Dirty */;
+    // 默认是脏的
+    this.deps = [];
+    // [new Set(), new Set] 记录effect依赖的属性列表
+    this.active = true;
+  }
+  get dirty() {
+    return this._dirtyLevel === 4 /* Dirty */;
+  }
+  set dirty(value) {
+    this._dirtyLevel = value ? 4 /* Dirty */ : 0 /* NoDirty */;
+  }
+  run() {
+    this._dirtyLevel = 0 /* NoDirty */;
+    if (!this.active) return this.fn();
+    let lastEffect = activeEffect;
+    try {
+      activeEffect = this;
+      preCleanupEffect(this);
+      this._running++;
+      return this.fn();
+    } finally {
+      this._running--;
+      postCleanupEffect(this);
+      activeEffect = lastEffect;
+    }
+  }
+  stop() {
+    if (this.active) {
+      this.active = false;
+      preCleanupEffect(this);
+      postCleanupEffect(this);
+    }
+  }
+};
+function cleanDepEffect(dep, effect) {
+  dep.delete(effect);
+  if (dep.size === 0) {
+    dep.cleanup();
+  }
+}
+function trackEffect(effect, dep) {
+  if (dep.get(effect) !== effect._trackId) {
+    dep.set(effect, effect._trackId);
+    let oldDep = effect.deps[effect._depsLength];
+    if (oldDep !== dep) {
+      if (oldDep) {
+        cleanDepEffect(oldDep, effect);
+      }
+      effect.deps[effect._depsLength++] = dep;
+    } else {
+      effect._depsLength++;
+    }
+  }
+  console.log(effect, dep, "111");
+}
+function triggerEffects(dep) {
+  for (const effect of dep.keys()) {
+    if (effect._dirtyLevel < 4 /* Dirty */) {
+      effect._dirtyLevel = 4 /* Dirty */;
+    }
+    if (!effect._running) {
+      if (effect.scheduler) {
+        effect.scheduler();
+      }
+    }
+  }
+}
+
+// packages/reactivity/src/reactiveEffect.ts
+var targetMap = /* @__PURE__ */ new WeakMap();
+var createDep = (cleanup, name) => {
+  const dep = /* @__PURE__ */ new Map();
+  dep.cleanup = cleanup;
+  dep.name = name;
+  return dep;
+};
+function track(target, key) {
+  if (activeEffect) {
+    let depsMap = targetMap.get(target);
+    if (!depsMap) targetMap.set(target, depsMap = /* @__PURE__ */ new Map());
+    let dep = depsMap.get(key);
+    if (!dep) {
+      depsMap.set(
+        key,
+        dep = createDep(() => depsMap.delete(key), key)
+      );
+    }
+    trackEffect(activeEffect, dep);
+  }
+}
+function trigger(target, key, val, oldVal) {
+  let depsMap = targetMap.get(target);
+  if (!depsMap) return;
+  let dep = depsMap.get(key);
+  if (!dep) return;
+  triggerEffects(dep);
+}
+
+// packages/reactivity/src/baseHandler.ts
+var mutableHandler = {
+  // 原始对象，属性，代理对象
+  get(target, key, receiver) {
+    if (key === "__v_isReactive" /* IS_REACTIVE */) return true;
+    track(target, key);
+    const result = Reflect.get(target, key, receiver);
+    if (isObject(result)) {
+      return reactive(result);
+    }
+    return result;
+  },
+  set(target, key, val, receiver) {
+    let oldVal = target[key];
+    let flag = Reflect.set(target, key, val, receiver);
+    if (oldVal !== val) {
+      trigger(target, key, val, oldVal);
+    }
+    return flag;
+  }
+};
+
+// packages/reactivity/src/reactive.ts
+var reactiveMap = /* @__PURE__ */ new WeakMap();
+var reactive = (target) => {
+  return createReactiveObj(target);
+};
+function createReactiveObj(target) {
+  if (!isObject(target)) return target;
+  if (target["__v_isReactive" /* IS_REACTIVE */]) return target;
+  let existProxy = reactiveMap.get(target);
+  if (existProxy) return existProxy;
+  const proxy = new Proxy(target, mutableHandler);
+  reactiveMap.set(target, proxy);
+  return proxy;
+}
+
+// packages/runtime-core/src/scheduler.ts
+var queue = [];
+var isFlushing = false;
+var resolePromise = Promise.resolve();
+function queueJob(job) {
+  if (!queue.includes(job)) {
+    queue.push(job);
+  }
+  if (!isFlushing) {
+    isFlushing = true;
+  }
+  resolePromise.then(() => {
+    isFlushing = false;
+    const copyQueue = [...queue];
+    queue.length = 0;
+    copyQueue.forEach((job2) => job2());
+    copyQueue.length = 0;
+  });
+}
+
 // packages/runtime-core/src/renderer.ts
 function createRenderer(renderOptions2) {
   const {
@@ -197,7 +379,11 @@ function createRenderer(renderOptions2) {
     hostInsert(el, container, anchor);
   };
   function unmount(vnode) {
-    hostRemove(vnode.el);
+    if (vnode.type === Fragment) {
+      unmountChildren(vnode.children);
+    } else {
+      hostRemove(vnode.el);
+    }
   }
   const unmountChildren = (children) => {
     children.forEach((child) => {
@@ -331,22 +517,97 @@ function createRenderer(renderOptions2) {
     patchProps(oldProps, newProps, el);
     patchChildren(n1, n2, el);
   };
+  const processText = (n1, n2, container) => {
+    if (n1 === null) {
+      n2.el = hostCreateText(n2.children);
+      hostInsert(n2.el, container);
+    } else {
+      const el = n2.el = n1.el;
+      if (n1.children !== n2.children) {
+        hostSetText(el, n2.children);
+      }
+    }
+  };
+  const processFragment = (n1, n2, container) => {
+    if (n1 === null) {
+      mountChildren(n2.children, container);
+    } else {
+      patchChildren(n1, n2, container);
+    }
+  };
+  const mountComponent = (n2, container, anchor) => {
+    const { data = () => {
+    }, render: render3 } = n2.type;
+    const state = reactive(data());
+    const instance = {
+      state,
+      // 组件状态
+      subTree: null,
+      // 子树
+      vnode: n2,
+      // 组件虚拟节点
+      isMounted: false,
+      // 是否挂载完成
+      update: null
+      // 渲染函数
+    };
+    const componentUpdateFn = () => {
+      if (!instance.isMounted) {
+        const subTree = render3.call(state, state);
+        patch(null, subTree, container, anchor);
+        instance.subTree = subTree;
+        instance.isMounted = true;
+      } else {
+        const subTree = render3.call(state, state);
+        patch(instance.subTree, subTree, container, anchor);
+        instance.subTree = subTree;
+      }
+    };
+    const effect = new ReactiveEffect(componentUpdateFn, () => queueJob(update));
+    const update = instance.update = () => effect.run();
+    update();
+  };
+  const processComponent = (n1, n2, container, anchor = null) => {
+    if (n1 === null) {
+      mountComponent(n2, container, anchor);
+    } else {
+    }
+  };
   const patch = (n1, n2, container, anchor = null) => {
     if (n1 === n2) return;
     if (n1 && !isSameVnode(n1, n2)) {
       unmount(n1);
       n1 = null;
     }
-    processElement(n1, n2, container, anchor);
+    const { type, shapeFlag } = n2;
+    switch (type) {
+      case Text:
+        processText(n1, n2, container);
+        break;
+      case Fragment:
+        processFragment(n1, n2, container);
+        break;
+      // case Comment:
+      //   processCommentNode(n1, n2, container);
+      //   break;
+      default:
+        if (shapeFlag & 1 /* ELEMENT */) {
+          processElement(n1, n2, container, anchor);
+        } else if (shapeFlag & 6 /* COMPONENT */) {
+          processComponent(n1, n2, container, anchor);
+        }
+        break;
+    }
   };
   const render2 = (vnode, container) => {
     if (vnode === null) {
       if (container._vnode) {
         return unmount(container._vnode);
       }
+    } else {
+      patch(container._vnode || null, vnode, container);
+      container._vnode = vnode;
     }
-    patch(container._vnode || null, vnode, container);
-    container._vnode = vnode;
   };
   return {
     render: render2
@@ -382,6 +643,8 @@ var render = (vnode, container) => {
   return createRenderer(renderOptions).render(vnode, container);
 };
 export {
+  Fragment,
+  Text,
   createRenderer,
   createVnode,
   h,
