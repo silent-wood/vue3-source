@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module">
+    import { h } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
+
+    import { render } from './runtime-dom.js'
+    let ele = h('h1', { style: { color: 'red'}}, [h('span', 'hello'), h('span', 'world')])
+    console.log(ele);
+    render(ele, app)
+
+  </script>
+</body>
+</html>
