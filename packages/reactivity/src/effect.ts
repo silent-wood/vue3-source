@@ -76,17 +76,22 @@ function cleanDepEffect(dep, effect) {
 export function trackEffect(effect, dep) {
 	// 避免同一个属性的同一个effect多次收集
 	if (dep.get(effect) !== effect._trackId) {
-		dep.set(effect, effect._trackId); // 更新id
-		let oldDep = effect.deps[effect._depsLength];
-		if (oldDep !== dep) {
-			if (oldDep) { // 删掉老的
-				cleanDepEffect(oldDep, effect);
-			}
-			effect.deps[effect._depsLength++] = dep; // 按照最新的存放
-		} else {
-			effect._depsLength++;
-		}
-	}
+    dep.set(effect, effect._trackId); // 更新id
+    // {flag,name}
+    // {flag,age
+    let oldDep = effect.deps[effect._depsLength];
+    // 如果没有存过
+    if (oldDep !== dep) {
+      if (oldDep) {
+        // 删除掉老的
+        cleanDepEffect(oldDep, effect);
+      }
+      // 换成新的
+      effect.deps[effect._depsLength++] = dep; // 永远按照本次最新的来存放
+    } else {
+      effect._depsLength++;
+    }
+  }
 }
 
 export function triggerEffects(dep) {

@@ -13,7 +13,7 @@ function createRef(value) {
 class RefImpl {
   public __v_isRef = true; // ref标识
   public _value; // 保存值
-  public dep = new Set()
+  public dep
   constructor(public rawValue) {
     this._value = toReactive(rawValue)
   }
@@ -50,7 +50,7 @@ export function triggerRefValue(ref) {
 
 class ObjectRefImpl {
   public __v_isRef = true; // ref标识
-  public dep = new Set()
+  public dep; // 这里不能默认给一个new Set, 给了之后再trackRefEffect的时候一直都是空的set
   constructor(public _object, public _key) { }
   get value() {
     return this._object[this._key];
