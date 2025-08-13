@@ -319,11 +319,48 @@ export function createRenderer(renderOptions) {
     setupRenderEffect(instance, container, anchor)
   }
 
+  const hasPropsChange = (prevProps, nextProps) => {
+    const nextKeys = Object.keys(nextProps);
+    if (nextKeys.length !== Object.keys(prevProps).length) return true
+    for(let i = 0; i < nextKeys.length; i++) {
+      const key = nextKeys[i];
+      if (nextProps[key] !== prevProps[key]) return true
+    }
+    return false
+  }
+
+  /**
+   * 更新属性，组件的props是一个响应式的，当数据变化会触发effect
+   * @param prevProps 老属性
+   * @param nextProps 新属性
+   * @param instance 组件实例
+   */
+  const updateProps = (prevProps, nextProps, instance) => {
+    if (hasPropsChange(prevProps, nextProps)) { // 属性有变化
+      for(let key in nextProps) { // 更新属性
+        instance.props[key] = nextProps[key];
+      }
+      for(let key in prevProps) { // 删除老的
+        if (!(key in nextProps)) {
+          delete instance.props[key];
+        }
+      }
+    }
+  }
+
+  const updateComponent = (n1, n2) => {
+    const instance = (n2.component = n1.component); // 复用组件实例
+    const { props: prevProps} = n1;
+    const { props: nextProps} = n2;
+    // 更新props
+    updateProps(prevProps, nextProps, instance);
+  }
+
   const processComponent = (n1, n2, container, anchor = null) => {
     if (n1 === null) { // 组件渲染
       mountComponent(n2, container, anchor);
     } else { // 组件更新
-      // updateComponent(n1, n2);
+      updateComponent(n1, n2);
   }
 }
 

@@ -8,29 +8,36 @@
 <body>
   <div id="app"></div>
   <script type="module">
-    // import { h } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
+    // import { h, render, Text, Fragment } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
 
     import { render, h, Text, Fragment } from './runtime-dom.js'
     
+    const WrapComponent = {
+      props: {
+        address: String
+      },
+      render() {
+        return h(Text, this.address)
+      }
+    }
+
     const VueComponent = {
       data() {
         return {
-          name: '张三',
-          age: 18
+          flag: true
         }
       },
       props: {
         a: Number,
       },
       render() {
-        // setTimeout(() => {
-        //   this.age++;
-        //   this.age++;
-        // }, 1000)
-        return h('div', this.name + this.age)
+        return h(Fragment, [
+          h('button', { onClick: () => (this.flag = !this.flag) }, '点我'),
+          h(WrapComponent, { address: this.flag ? '北京' : '上海'})
+        ])
       }
     }
-    render(h(VueComponent, { a: 1, b: 2}), app)
+    render(h(VueComponent), app)
   </script>
 </body>
 </html>

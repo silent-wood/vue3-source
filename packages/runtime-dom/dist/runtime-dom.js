@@ -426,9 +426,13 @@ function setupComponent(instance) {
   const { vnode } = instance;
   initProps(instance, vnode.props);
   instance.proxy = new Proxy(instance, instanceHandler);
-  const { data, render: render2 } = vnode.type;
-  if (!isFunction(data)) return console.warn("data must be a function");
-  instance.data = reactive(data.call(instance.proxy));
+  const { data = () => {
+  }, render: render2 } = vnode.type;
+  if (!isFunction(data)) {
+    console.warn("data must be a function");
+  } else {
+    instance.data = reactive(data.call(instance.proxy));
+  }
   instance.render = render2;
 }
 
@@ -645,10 +649,38 @@ function createRenderer(renderOptions2) {
     setupComponent(instance);
     setupRenderEffect(instance, container, anchor);
   };
+  const hasPropsChange = (prevProps, nextProps) => {
+    const nextKeys = Object.keys(nextProps);
+    if (nextKeys.length !== Object.keys(prevProps).length) return true;
+    for (let i = 0; i < nextKeys.length; i++) {
+      const key = nextKeys[i];
+      if (nextProps[key] !== prevProps[key]) return true;
+    }
+    return false;
+  };
+  const updateProps = (prevProps, nextProps, instance) => {
+    if (hasPropsChange(prevProps, nextProps)) {
+      for (let key in nextProps) {
+        instance.props[key] = nextProps[key];
+      }
+      for (let key in prevProps) {
+        if (!(key in nextProps)) {
+          delete instance.props[key];
+        }
+      }
+    }
+  };
+  const updateComponent = (n1, n2) => {
+    const instance = n2.component = n1.component;
+    const { props: prevProps } = n1;
+    const { props: nextProps } = n2;
+    updateProps(prevProps, nextProps, instance);
+  };
   const processComponent = (n1, n2, container, anchor = null) => {
     if (n1 === null) {
       mountComponent(n2, container, anchor);
     } else {
+      updateComponent(n1, n2);
     }
   };
   const patch = (n1, n2, container, anchor = null) => {
@@ -707,7 +739,6 @@ function h(type, propsOrChildren, children) {
   } else {
     if (len > 3) {
       children = Array.from(arguments).slice(2);
-      console.log(children);
     } else if (len === 3 && isVnode(children)) {
       children = [children];
     }
