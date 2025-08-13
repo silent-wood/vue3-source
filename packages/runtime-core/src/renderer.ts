@@ -288,15 +288,35 @@ export function createRenderer(renderOptions) {
     }
   }
 
+  /**
+   * 更新组件的渲染
+   * @param instance 组件实例
+   * @param next 最新的虚拟节点
+   */
+  const updateComponentPreRender = (instance, next) => {
+    // 清空instance.next属性
+    instance.next = null;
+    // 更新组件的虚拟节点
+    instance.vnode = next;
+    // 更新props
+    updateProps(instance, instance.props, next.props);
+  }
+
   const setupRenderEffect = (instance, container, anchor) => {
     const { render } = instance;
-  const componentUpdateFn = () => {
+    const componentUpdateFn = () => {
       if (!instance.isMounted) { // 首次渲染
         const subTree = render.call(instance.proxy, instance.proxy);
         patch(null, subTree, container, anchor);
         instance.subTree = subTree;
         instance.isMounted = true;
       } else {
+        // 基于状态的更新
+        const { next } = instance;
+        if (next) { // 组件更新
+          // 更新属性
+          updateComponentPreRender(instance, next)
+        }
         const subTree = render.call(instance.proxy, instance.proxy); // 更新
         patch(instance.subTree, subTree, container, anchor);
         instance.subTree = subTree;
@@ -331,11 +351,11 @@ export function createRenderer(renderOptions) {
 
   /**
    * 更新属性，组件的props是一个响应式的，当数据变化会触发effect
+   * @param instance 组件实例
    * @param prevProps 老属性
    * @param nextProps 新属性
-   * @param instance 组件实例
    */
-  const updateProps = (prevProps, nextProps, instance) => {
+  const updateProps = (instance, prevProps, nextProps) => {
     if (hasPropsChange(prevProps, nextProps)) { // 属性有变化
       for(let key in nextProps) { // 更新属性
         instance.props[key] = nextProps[key];
@@ -348,12 +368,29 @@ export function createRenderer(renderOptions) {
     }
   }
 
+  /**
+   * 是否需要更新组件
+   * @param n1 老节点
+   * @param n2 新节点
+   */
+  const shouldUpdateComponent = (n1, n2) => {
+    const { props: prevProps, children: prevChildren } = n1;
+    const { props: nextProps, children: nextChildren} = n2;
+
+    // 只要插槽内容有就需要更新
+    if (prevChildren || nextChildren) return true
+
+    if (prevProps !== nextProps) return true
+
+    return hasPropsChange(prevProps, nextProps)
+  }
+
   const updateComponent = (n1, n2) => {
     const instance = (n2.component = n1.component); // 复用组件实例
-    const { props: prevProps} = n1;
-    const { props: nextProps} = n2;
-    // 更新props
-    updateProps(prevProps, nextProps, instance);
+    if (shouldUpdateComponent(n1, n2)) {
+      instance.next = n2;
+      instance.update();
+    }
   }
 
   const processComponent = (n1, n2, container, anchor = null) => {
