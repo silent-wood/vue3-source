@@ -1,13 +1,9 @@
-import { reactive } from "@vue/reactivity";
-import { hasOwn, isFunction } from "@vue/shared";
+import { proxyRefs, reactive } from "@vue/reactivity";
+import { hasOwn, isFunction, isObject } from "@vue/shared";
 
 export function createComponentInstance (vnode) {
-  // 组件可以基于自己的状态重新渲染 本质上就是effect
-  const { data = () => { }, render } = vnode.type;
-  const state = reactive(data()); // 组件状态
-
   const instance = {
-    state, // 组件状态
+    data: null, // 组件状态
     subTree: null, // 子树
     vnode, // 组件虚拟节点
     isMounted: false, // 是否挂载完成
@@ -17,7 +13,8 @@ export function createComponentInstance (vnode) {
     propsOptions: vnode.type.props,
     component: null,  // 元素的更新：n2.el = n1.el  组件更新：n2.component.subTree.el = n1.component.subTree.el
     proxy: null, // 用户访问props,attrs, data中的值的代理对象
-    render: null
+    render: null,
+    setupState: {}, // setup返回的对象
   }
 
   return instance;
@@ -51,12 +48,15 @@ const publicProps = { // 策略模式
 };
 const instanceHandler = {
   get(target, key) {
-    const { props, state } = target;
-    if (state && hasOwn(state, key)) {
-      return state[key]
+    const { props, data, setupState } = target;
+    if (data && hasOwn(data, key)) {
+      return data[key]
     }
     if (props && hasOwn(props, key)) {
       return props[key]
+    }
+    if (setupState.hasOwnProperty(key)) {
+      return setupState[key]
     }
     const getter = publicProps[key];
     if (getter) {
@@ -64,13 +64,16 @@ const instanceHandler = {
     }
   },
   set(target, key, value) {
-    const { props, state } = target;
-    if (state && hasOwn(state, key)) {
-      state[key] = value;
+    const { props, data, setupState } = target;
+    if (data && hasOwn(data, key)) {
+      data[key] = value;
     }
     if (props && hasOwn(props, key)) {
       console.warn(`props is readonly`);
       return false
+    }
+    if (setupState && setupState.hasOwn(key)) { 
+      setupState[key] = value
     }
     return true
   }
@@ -82,13 +85,30 @@ export function setupComponent(instance) {
   initProps(instance, vnode.props);
   // 赋值代理对象
   instance.proxy = new Proxy(instance, instanceHandler);
+  const { data = () => {}, render, setup } = vnode.type;
+  if (isFunction(setup)) {
+    const setupContext = {
 
-  const { data = () => {}, render } = vnode.type;
+    }
+    // 需要将setup执行获取返回值
+    const setupResult = setup(instance.props, setupContext);
+    if (isFunction(setupResult)) { // 如果setup返回的是render函数
+      instance.render = setupResult;
+    } else {
+      instance.setupState = proxyRefs(setupResult);
+      console.warn('setup must return a function or object');
+    }
+  }
+
+
   if (!isFunction(data))  {
     console.warn('data must be a function');
   } else{
      // data中可以拿到props
     instance.data = reactive(data.call(instance.proxy));
   }
-  instance.render = render
+  // setup函数返回的render优先级高
+  if (!instance.render) {
+    instance.render = render
+  }
 }
