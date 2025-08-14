@@ -1,7 +1,7 @@
 import { proxyRefs, reactive } from "@vue/reactivity";
-import { hasOwn, isFunction, isObject } from "@vue/shared";
+import { hasOwn, isFunction, ShapeFlags } from "@vue/shared";
 
-export function createComponentInstance (vnode) {
+export function createComponentInstance (vnode, parent) {
   const instance = {
     data: null, // 组件状态
     subTree: null, // 子树
@@ -10,11 +10,15 @@ export function createComponentInstance (vnode) {
     update: null, // 渲染函数
     props: {},
     attrs: {},
+    slots: {},
     propsOptions: vnode.type.props,
     component: null,  // 元素的更新：n2.el = n1.el  组件更新：n2.component.subTree.el = n1.component.subTree.el
     proxy: null, // 用户访问props,attrs, data中的值的代理对象
     render: null,
+    parent,
     setupState: {}, // setup返回的对象
+    provides: parent ? parent.provides : Object.create(null), // 父组件的provides
+    exposed: {} // 暴露给用户访问的属性
   }
 
   return instance;
@@ -44,8 +48,10 @@ const initProps = (instance, rawProps) => {
 
 // 这是为了给用户访问$attrs, $slots ...
 const publicProps = { // 策略模式
-  $attrs: (instance) => instance.attrs
+  $attrs: (instance) => instance.attrs,
+  $slots: (instance) => instance.slots
 };
+
 const instanceHandler = {
   get(target, key) {
     const { props, data, setupState } = target;
@@ -79,19 +85,40 @@ const instanceHandler = {
   }
 }
 
+const initSlots = (instance, children) => {
+  if (instance.vnode.shapeFlag & ShapeFlags.SLOTS_CHILDREN) {
+    instance.slots = children;
+  } else {
+    instance.slots = {};
+  }
+}
+
 export function setupComponent(instance) {
   const { vnode } = instance;
   // 赋值属性
   initProps(instance, vnode.props);
+  // 赋值插槽
+  initSlots(instance, vnode.children)
   // 赋值代理对象
   instance.proxy = new Proxy(instance, instanceHandler);
   const { data = () => {}, render, setup } = vnode.type;
   if (isFunction(setup)) {
     const setupContext = {
-
+      slots: instance.slots,
+      attrs: instance.attrs,
+      expose: (value) => {
+        instance.exposed = value;
+      },
+      emit(event, ...payload) {
+        const eventName = `on${event[0].toUpperCase()}${event.slice(1)}`;
+        const handler = instance.vnode.props[eventName];
+        handler && handler(...payload);
+      }
     }
+    setCurrentInstance(instance);
     // 需要将setup执行获取返回值
     const setupResult = setup(instance.props, setupContext);
+    unsetCurrentInstance();
     if (isFunction(setupResult)) { // 如果setup返回的是render函数
       instance.render = setupResult;
     } else {
@@ -112,3 +139,14 @@ export function setupComponent(instance) {
     instance.render = render
   }
 }
+
+export let currentInstance = null;
+export const getCurrentInstance = () => {
+  return currentInstance;
+};
+export const setCurrentInstance = (instance) => {
+  currentInstance = instance;
+};
+export const unsetCurrentInstance = () => {
+  currentInstance = null;
+};

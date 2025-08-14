@@ -1,5 +1,5 @@
 import { isObject, isString, ShapeFlags } from "@vue/shared";
-
+import { isTeleport } from './components/Teleport'
 export const Text = Symbol('Text'); // 文本节点
 
 export const Fragment = Symbol('Fragment')
@@ -27,7 +27,9 @@ export function isSameVnode(n1, n2) {
 // a = 1                   0001 => 1
 
 export function createVnode(type, props, children) {
-  const shapeFlag = isString(type) ? ShapeFlags.ELEMENT // 元素
+  const shapeFlag = 
+    isString(type) ? ShapeFlags.ELEMENT // 元素
+    : isTeleport(type) ? ShapeFlags.TELEPORT // Teloport
     : isObject(type) ? ShapeFlags.STATEFUL_COMPONENT // 组件
       : 0;
   const vnode = {
@@ -42,6 +44,8 @@ export function createVnode(type, props, children) {
   if (Array.isArray(children)) {
     // vnode.shapeFlag = vnode.shapeFlag | ShapeFlags.ARRAY_CHILDREN; // 虚拟节点类型
     vnode.shapeFlag |= ShapeFlags.ARRAY_CHILDREN // 简写， 按位或赋值运算符
+  } else if(isObject(children)) {
+    vnode.shapeFlag |= ShapeFlags.SLOTS_CHILDREN // 组件的孩子，比如插槽
   } else {
     children = String(children)
     vnode.shapeFlag |= ShapeFlags.TEXT_CHILDREN

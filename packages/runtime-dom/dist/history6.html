@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="root"></div>
+  <script type="module">
+    // import { ref, render, Fragment, h, Teleport } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
+    import { render, h, Text, Fragment, ref, effect, Teleport } from './runtime-dom.js'
+    /** slots */
+    // const renderComponent = {
+    //   // render(proxy) {
+    //   //   return h(Fragment, [
+    //   //     proxy.$slots.footer(),
+    //   //     proxy.$slots.header(),
+    //   //   ])
+    //   // }
+    //   setup(props, { slots }) {
+    //     console.log(arguments)
+    //     return () => h(Fragment, [slots.footer(), slots.header()])
+    //   }
+    // }
+
+    // const VueComponent = {
+    //   render() {
+    //     return h(renderComponent, null, {
+    //       header: () => h('div', 'header'),
+    //       footer: () => h('div', 'footer'),
+    //     })
+    //   }
+    // }
+
+    /** emit */
+    // const VueComponent = {
+    //   setup(props, { emit }) {
+    //     return () => h('button', { onClick: () => emit('myEvent', 100) }, '点一点')
+    //   }
+    // }
+    // render(h(VueComponent, { onMyEvent: (value) => console.log('emit', value) }), app)
+    // setTimeout(() => {
+    //   render(null, app)
+    // }, 1000)
+    render(h(Teleport, { to: '#root' }, [1,2,3]), app);
+
+  </script>
+</body>
+</html>
