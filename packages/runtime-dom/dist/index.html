@@ -9,40 +9,12 @@
   <div id="app"></div>
   <div id="root"></div>
   <script type="module">
-    // import { ref, render, Fragment, h, Teleport, provide, inject } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
-    import { render, h, Text, Fragment, ref, effect, Teleport, provide, inject } from './runtime-dom.js'
-
-    const P3 = {
-      n: 'p3',
-      setup() {
-        const name = inject('name')
-        const age = inject('age', 30)
-        return () => h('div', null, [name.value, age])
-      }
+    // import { ref, render, Fragment, h, Teleport, provide, inject, onBeforeMount, onMounted, onUpdated, onBeforeUpdate, onUnmounted, onBeforeUnmount } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
+    import { render, h, Text, Fragment, ref, effect, Teleport, provide, inject, onBeforeMount, onMounted, onUpdated, onBeforeUpdate, onUnmounted, onBeforeUnmount } from './runtime-dom.js'
+    function functional(props) {
+      return h('p', props.msg)
     }
-
-    const P2 = {
-      n: 'p2',
-      setup() {
-        return () => h(P3)
-      }
-    }
-
-    const P1 = {
-      n: 'p1',
-      setup() {
-        const name = ref('张三')
-        provide('name', name)
-         setTimeout(() => {
-          name.value = '李四'
-        }, 1000)
-        return () => h(P2)
-      }
-    }
-
-   
-
-    render(h(P1), app)
+    render(h(functional, { msg: 'hello world' }), app)
 
   </script>
 </body>

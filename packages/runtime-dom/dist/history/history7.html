@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="root"></div>
+  <script type="module">
+    // import { ref, render, Fragment, h, Teleport, provide, inject, onBeforeMount, onMounted, onUpdated, onBeforeUpdate, onUnmounted, onBeforeUnmount } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
+    import { render, h, Text, Fragment, ref, effect, Teleport, provide, inject, onBeforeMount, onMounted, onUpdated, onBeforeUpdate, onUnmounted, onBeforeUnmount } from './runtime-dom.js'
+
+    const P2 = {
+      n: 'p2',
+      props: {
+        value: Number
+      },
+      setup(props) {
+        console.log('p2 setup')
+        onBeforeMount(() => {
+          console.log('p2 onBeforeMount')
+        })
+        onMounted(() => {
+          console.log('p2 onMounted')
+        })
+        onUpdated(() => {
+          console.log('p2 onUpdated')
+        })
+        onBeforeUpdate(() => {
+          console.log('p2 onBeforeUpdate')
+        })
+        onUnmounted(() => {
+          console.log('p2 onUnmounted')
+        })
+        onBeforeUnmount(() => {
+          console.log('p2 onBeforeUnmount')
+        })
+        return () => h('div', props.value)
+      }
+    }
+
+    const P1 = {
+      n: 'p1',
+      setup() {
+        const value = ref(1)
+        console.log('p1 setup')
+        onBeforeMount(() => {
+          console.log('p1 onBeforeMount')
+        })
+        onMounted((arg) => {
+          console.log(arg, 'p1 onMounted')
+        })
+        onMounted(() => {
+          console.log('p1 onMounted1')
+        })
+        onUpdated(() => {
+          console.log('p1 onUpdated')
+        })
+        onBeforeUpdate(() => {
+          console.log('p1 onBeforeUpdate')
+        })
+        onUnmounted(() => {
+          console.log('p1 onUnmounted')
+        })
+        onBeforeUnmount(() => {
+          console.log('p1 onBeforeUnmount')
+        })
+        setTimeout(() => {
+          // value.value = 2
+          render(null, app)
+        }, 2000)
+        return () => h(P2, { value: value.value })
+      }
+    }
+
+   
+
+    render(h(P1), app)
+
+  </script>
+</body>
+</html>

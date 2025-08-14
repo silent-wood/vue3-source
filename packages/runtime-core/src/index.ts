@@ -4,3 +4,5 @@ export * from './createVnode';
 export * from '@vue/reactivity'
 export * from './components/Teleport'
 export * from './apiProvide'
+export * from './component'
+export * from './apiLifeCycle'

@@ -1,9 +1,10 @@
 import { isNumber, isString, ShapeFlags } from "@vue/shared";
 import { createVnode, Fragment, isSameVnode, Text } from "./createVnode";
 import getSequence from "./seq";
-import { ReactiveEffect } from "@vue/reactivity";
+import { isRef, ReactiveEffect } from "@vue/reactivity";
 import { queueJob } from "./scheduler";
 import { createComponentInstance, setupComponent } from "./component";
+import { invokeArray } from "./apiLifeCycle";
 
 export function createRenderer(renderOptions) {
     const {
@@ -72,7 +73,11 @@ export function createRenderer(renderOptions) {
    * @param vnode 需要卸载的虚拟节点
    */
   function unmount (vnode, parentComponent) {
-    const { shapeFlag, type} = vnode;
+    const { shapeFlag, type, component } = vnode;
+    const { bum, um } = component || {};
+    if (bum) {
+      invokeArray(bum)
+    }
     if (type === Fragment) { // 卸载Fragment
       unmountChildren(vnode.children, parentComponent)
     } else if(shapeFlag & ShapeFlags.COMPONENT) { // 卸载组件
@@ -81,6 +86,10 @@ export function createRenderer(renderOptions) {
       vnode.type.remove(vnode, unmount)
     } else {
       hostRemove(vnode.el)
+    }
+    
+    if (um) {
+      invokeArray(um)
     }
   }
 
@@ -319,22 +328,39 @@ export function createRenderer(renderOptions) {
     updateProps(instance, instance.props, next.props);
   }
 
+  // 渲染组件
+  function renderComponent(instance) {
+      const { render, vnode, proxy, attrs, props } = instance;
+      if (vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) { 
+        return render.call(proxy, proxy)
+      } else { // 函数式组件
+        return vnode.type(attrs)
+      }
+  }
+
   const setupRenderEffect = (instance, container, anchor, parentComponent) => {
     const { render } = instance;
     const componentUpdateFn = () => {
       if (!instance.isMounted) { // 首次渲染
-        const subTree = render.call(instance.proxy, instance.proxy);
+        const { bm, m } = instance;
+        invokeArray(bm); // onBeforeMount
+        // const subTree = render.call(instance.proxy, instance.proxy);
+        const subTree = renderComponent(instance);
+        invokeArray(m); // onMounted
         patch(null, subTree, container, anchor, instance);
         instance.subTree = subTree;
         instance.isMounted = true;
       } else {
         // 基于状态的更新
-        const { next } = instance;
+        const { next, bu, u } = instance;
         if (next) { // 组件更新
           // 更新属性
           updateComponentPreRender(instance, next)
         }
-        const subTree = render.call(instance.proxy, instance.proxy); // 更新
+        invokeArray(bu); // onBeforeUpdate
+        // const subTree = render.call(instance.proxy, instance.proxy); // 更新
+        const subTree = renderComponent(instance);; // 更新
+        invokeArray(u); // onUpdated
         patch(instance.subTree, subTree, container, anchor, instance);
         instance.subTree = subTree;
       }
@@ -348,7 +374,7 @@ export function createRenderer(renderOptions) {
 }
 
   const mountComponent = (vnode, container, anchor, parentComponent) => {
-    // 1、创建组件实例
+    // 1、创建组件实例,并把组件实例放到虚拟节点的component上
     const instance = (vnode.component = createComponentInstance(vnode, parentComponent)); // 组件实例关联
     // 2、给实例的属性赋值
     setupComponent(instance)
@@ -431,7 +457,7 @@ export function createRenderer(renderOptions) {
       unmount(n1, parentComponent);
       n1 = null
     }
-    const { type, shapeFlag } = n2;
+    const { type, shapeFlag, ref } = n2;
     switch (type) {
       case Text:
         processText(n1, n2, container);
@@ -464,6 +490,19 @@ export function createRenderer(renderOptions) {
         
         break; 
       }
+    
+      // 如果vnode上有ref属性，需要区分是dom 还是组件 还是组件暴露的expose
+    if (ref != null) {
+      setRef(ref, n2);
+    }
+  }
+
+  function setRef(rawRef, vnode) {
+    let value = vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT ?
+      vnode.component.expose || vnode.component.proxy : vnode.el;
+    if (isRef(rawRef)) {
+      rawRef.value = value;
+    }
   }
 
    // 多次调用render 会进行虚拟节点的比较，在进行更新

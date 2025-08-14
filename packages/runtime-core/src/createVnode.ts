@@ -1,4 +1,4 @@
-import { isObject, isString, ShapeFlags } from "@vue/shared";
+import { isFunction, isObject, isString, ShapeFlags } from "@vue/shared";
 import { isTeleport } from './components/Teleport'
 export const Text = Symbol('Text'); // 文本节点
 
@@ -31,7 +31,8 @@ export function createVnode(type, props, children) {
     isString(type) ? ShapeFlags.ELEMENT // 元素
     : isTeleport(type) ? ShapeFlags.TELEPORT // Teloport
     : isObject(type) ? ShapeFlags.STATEFUL_COMPONENT // 组件
-      : 0;
+    : isFunction(type) ? ShapeFlags.FUNCTIONAL_COMPONENT // 函数组件
+    : 0;
   const vnode = {
     __v_isVnode: true,
     type,
@@ -39,7 +40,8 @@ export function createVnode(type, props, children) {
     children,
     key: props?.key,
     el: null, // 虚拟节点对应的真实节点
-    shapeFlag
+    shapeFlag,
+    ref: props?.ref
   }
   if (Array.isArray(children)) {
     // vnode.shapeFlag = vnode.shapeFlag | ShapeFlags.ARRAY_CHILDREN; // 虚拟节点类型

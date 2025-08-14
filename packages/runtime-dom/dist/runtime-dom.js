@@ -138,7 +138,7 @@ function isSameVnode(n1, n2) {
   return n1.type === n2.type && n1.key === n2.key;
 }
 function createVnode(type, props, children) {
-  const shapeFlag = isString(type) ? 1 /* ELEMENT */ : isTeleport(type) ? 64 /* TELEPORT */ : isObject(type) ? 4 /* STATEFUL_COMPONENT */ : 0;
+  const shapeFlag = isString(type) ? 1 /* ELEMENT */ : isTeleport(type) ? 64 /* TELEPORT */ : isObject(type) ? 4 /* STATEFUL_COMPONENT */ : isFunction(type) ? 2 /* FUNCTIONAL_COMPONENT */ : 0;
   const vnode = {
     __v_isVnode: true,
     type,
@@ -147,7 +147,8 @@ function createVnode(type, props, children) {
     key: props?.key,
     el: null,
     // 虚拟节点对应的真实节点
-    shapeFlag
+    shapeFlag,
+    ref: props?.ref
   };
   if (Array.isArray(children)) {
     vnode.shapeFlag |= 16 /* ARRAY_CHILDREN */;
@@ -722,12 +723,52 @@ function setupComponent(instance) {
   }
 }
 var currentInstance = null;
+var getCurrentInstance = () => {
+  return currentInstance;
+};
 var setCurrentInstance = (instance) => {
   currentInstance = instance;
 };
 var unsetCurrentInstance = () => {
   currentInstance = null;
 };
+
+// packages/runtime-core/src/apiLifeCycle.ts
+var LifeCycle = /* @__PURE__ */ ((LifeCycle2) => {
+  LifeCycle2["BEFORE_MOUNT"] = "bm";
+  LifeCycle2["MOUNTED"] = "m";
+  LifeCycle2["BEFORE_UPDATE"] = "bu";
+  LifeCycle2["UPDATED"] = "u";
+  LifeCycle2["BEFORE_UNMOUNT"] = "bum";
+  LifeCycle2["UNMOUNTED"] = "um";
+  return LifeCycle2;
+})(LifeCycle || {});
+function createHook(type) {
+  return (hook, target = currentInstance) => {
+    if (target) {
+      const hooks = target[type] || (target[type] = []);
+      const wrapHook = () => {
+        setCurrentInstance(target);
+        hook.call(target);
+        unsetCurrentInstance();
+      };
+      hooks.push(wrapHook);
+    }
+  };
+}
+var onBeforeMount = createHook("bm" /* BEFORE_MOUNT */);
+var onMounted = createHook("m" /* MOUNTED */);
+var onBeforeUpdate = createHook("bu" /* BEFORE_UPDATE */);
+var onUpdated = createHook("u" /* UPDATED */);
+var onBeforeUnmount = createHook("bum" /* BEFORE_UNMOUNT */);
+var onUnmounted = createHook("um" /* UNMOUNTED */);
+function invokeArray(fns) {
+  if (Array.isArray(fns)) {
+    for (let i = 0; i < fns.length; i++) {
+      fns[i]();
+    }
+  }
+}
 
 // packages/runtime-core/src/renderer.ts
 function createRenderer(renderOptions2) {
@@ -774,7 +815,11 @@ function createRenderer(renderOptions2) {
     hostInsert(el, container, anchor);
   };
   function unmount(vnode, parentComponent) {
-    const { shapeFlag, type } = vnode;
+    const { shapeFlag, type, component } = vnode;
+    const { bum, um } = component || {};
+    if (bum) {
+      invokeArray(bum);
+    }
     if (type === Fragment) {
       unmountChildren(vnode.children, parentComponent);
     } else if (shapeFlag & 6 /* COMPONENT */) {
@@ -783,6 +828,9 @@ function createRenderer(renderOptions2) {
       vnode.type.remove(vnode, unmount);
     } else {
       hostRemove(vnode.el);
+    }
+    if (um) {
+      invokeArray(um);
     }
   }
   const unmountChildren = (children, parentComponent) => {
@@ -940,20 +988,34 @@ function createRenderer(renderOptions2) {
     instance.vnode = next;
     updateProps(instance, instance.props, next.props);
   };
+  function renderComponent(instance) {
+    const { render: render3, vnode, proxy, attrs, props } = instance;
+    if (vnode.shapeFlag & 4 /* STATEFUL_COMPONENT */) {
+      return render3.call(proxy, proxy);
+    } else {
+      return vnode.type(attrs);
+    }
+  }
   const setupRenderEffect = (instance, container, anchor, parentComponent) => {
     const { render: render3 } = instance;
     const componentUpdateFn = () => {
       if (!instance.isMounted) {
-        const subTree = render3.call(instance.proxy, instance.proxy);
+        const { bm, m } = instance;
+        invokeArray(bm);
+        const subTree = renderComponent(instance);
+        invokeArray(m);
         patch(null, subTree, container, anchor, instance);
         instance.subTree = subTree;
         instance.isMounted = true;
       } else {
-        const { next } = instance;
+        const { next, bu, u } = instance;
         if (next) {
           updateComponentPreRender(instance, next);
         }
-        const subTree = render3.call(instance.proxy, instance.proxy);
+        invokeArray(bu);
+        const subTree = renderComponent(instance);
+        ;
+        invokeArray(u);
         patch(instance.subTree, subTree, container, anchor, instance);
         instance.subTree = subTree;
       }
@@ -1015,7 +1077,7 @@ function createRenderer(renderOptions2) {
       unmount(n1, parentComponent);
       n1 = null;
     }
-    const { type, shapeFlag } = n2;
+    const { type, shapeFlag, ref: ref2 } = n2;
     switch (type) {
       case Text:
         processText(n1, n2, container);
@@ -1046,7 +1108,16 @@ function createRenderer(renderOptions2) {
         }
         break;
     }
+    if (ref2 != null) {
+      setRef(ref2, n2);
+    }
   };
+  function setRef(rawRef, vnode) {
+    let value = vnode.shapeFlag & 4 /* STATEFUL_COMPONENT */ ? vnode.component.expose || vnode.component.proxy : vnode.el;
+    if (isRef(rawRef)) {
+      rawRef.value = value;
+    }
+  }
   const render2 = (vnode, container) => {
     if (vnode === null) {
       if (container._vnode) {
@@ -1111,26 +1182,39 @@ var render = (vnode, container) => {
 };
 export {
   Fragment,
+  LifeCycle,
   ReactiveEffect,
   Teleport,
   Text,
   activeEffect,
   computed,
+  createComponentInstance,
   createRenderer,
   createVnode,
+  currentInstance,
   effect,
+  getCurrentInstance,
   h,
   inject,
+  invokeArray,
   isReactive,
   isRef,
   isSameVnode,
   isTeleport,
   isVnode,
+  onBeforeMount,
+  onBeforeUnmount,
+  onBeforeUpdate,
+  onMounted,
+  onUnmounted,
+  onUpdated,
   provide,
   proxyRefs,
   reactive,
   ref,
   render,
+  setCurrentInstance,
+  setupComponent,
   toReactive,
   toRef,
   toRefs,
@@ -1139,6 +1223,7 @@ export {
   triggerEffects,
   triggerRefValue,
   unRef,
+  unsetCurrentInstance,
   watch,
   watchEffect
 };
