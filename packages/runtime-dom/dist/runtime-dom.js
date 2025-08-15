@@ -137,7 +137,7 @@ function isVnode(value) {
 function isSameVnode(n1, n2) {
   return n1.type === n2.type && n1.key === n2.key;
 }
-function createVnode(type, props, children) {
+function createVnode(type, props, children, patchFlag) {
   const shapeFlag = isString(type) ? 1 /* ELEMENT */ : isTeleport(type) ? 64 /* TELEPORT */ : isObject(type) ? 4 /* STATEFUL_COMPONENT */ : isFunction(type) ? 2 /* FUNCTIONAL_COMPONENT */ : 0;
   const vnode = {
     __v_isVnode: true,
@@ -148,7 +148,8 @@ function createVnode(type, props, children) {
     el: null,
     // 虚拟节点对应的真实节点
     shapeFlag,
-    ref: props?.ref
+    ref: props?.ref,
+    patchFlag
   };
   if (Array.isArray(children)) {
     vnode.shapeFlag |= 16 /* ARRAY_CHILDREN */;
@@ -159,6 +160,27 @@ function createVnode(type, props, children) {
     vnode.shapeFlag |= 8 /* TEXT_CHILDREN */;
   }
   return vnode;
+}
+var currentBlock = null;
+function openBlock(disableTracking) {
+  if (!disableTracking) {
+    currentBlock = [];
+  }
+}
+function closeBlock() {
+  currentBlock = null;
+}
+function setupBlock(vnode) {
+  vnode.dynamicChildren = currentBlock;
+  closeBlock();
+  return vnode;
+}
+function createElementBlock(type, props, children, patchFlag) {
+  const vnode = createVnode(type, props, children, patchFlag);
+  return setupBlock(vnode);
+}
+function toDisplayString(value) {
+  return isString(value) ? value : value === null ? "" : isObject(value) ? JSON.stringify(value) : String(value);
 }
 
 // packages/runtime-core/src/seq.ts
@@ -1042,12 +1064,36 @@ function createRenderer(renderOptions2) {
       }
     }
   };
+  const patchBlockChildren = (n1, n2, el, anchor, parentComponent) => {
+    for (let i = 0; i < n2.dynamicChildren.length; i++) {
+      patch(
+        n1.dynamicChildren[i],
+        n2.dynamicChildren[i],
+        el,
+        anchor,
+        parentComponent
+      );
+    }
+  };
   const patchElement = (n1, n2, container, anchor, parentComponent) => {
     let el = n2.el = n1.el;
     const oldProps = n1.props || {};
     const newProps = n2.props || {};
-    patchProps(oldProps, newProps, el);
-    patchChildren(n1, n2, el, anchor, parentComponent);
+    const { patchFlag, dynamicChildren } = n2;
+    if (dynamicChildren) {
+      patchBlockChildren(n1, n2, el, anchor, parentComponent);
+    } else {
+      patchChildren(n1, n2, el, anchor, parentComponent);
+    }
+    if (patchFlag > 0) {
+      if (patchFlag & 1 /* TEXT */) {
+        if (n1.children !== n2.children) {
+          hostSetElementText(n2.children);
+        }
+      }
+    } else {
+      patchProps(oldProps, newProps, el);
+    }
   };
   const processText = (n1, n2, container) => {
     if (n1 === null) {
@@ -1082,7 +1128,6 @@ function createRenderer(renderOptions2) {
     }
   }
   const setupRenderEffect = (instance, container, anchor, parentComponent) => {
-    const { render: render3 } = instance;
     const componentUpdateFn = () => {
       if (!instance.isMounted) {
         const { bm, m } = instance;
@@ -1446,10 +1491,14 @@ export {
   Text,
   Transition,
   activeEffect,
+  closeBlock,
   computed,
   createComponentInstance,
+  createElementBlock,
+  createVnode as createElementVNode,
   createRenderer,
   createVnode,
+  currentBlock,
   currentInstance,
   defineAsyncComponent,
   effect,
@@ -1469,6 +1518,7 @@ export {
   onMounted,
   onUnmounted,
   onUpdated,
+  openBlock,
   provide,
   proxyRefs,
   reactive,
@@ -1476,7 +1526,9 @@ export {
   render,
   resolveTransitionProps,
   setCurrentInstance,
+  setupBlock,
   setupComponent,
+  toDisplayString,
   toReactive,
   toRef,
   toRefs,

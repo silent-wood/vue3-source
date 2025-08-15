@@ -9,35 +9,51 @@
   <div id="app"></div>
   <div id="root"></div>
   <script type="module">
-    // import { defineAsyncComponent, h, render } from '/node_modules/vue/dist/vue.runtime.esm-browser.js'
-    // import { render, h, Text, Fragment, ref, effect, Teleport, provide, inject, Transition } from './runtime-dom.js'
-    import { defineAsyncComponent, h, render } from './runtime-dom.js'
+    import {
+        renderList as _renderList,
+        // Fragment as _Fragment,
+        // openBlock as _openBlock,
+        // createElementBlock as _createElementBlock,
+        // toDisplayString as _toDisplayString,
+        // createElementVNode as _createElementVNode,
+        // render,
+        reactive,
+        toRefs,
+        h,
+      } from "/node_modules/vue/dist/vue.esm-browser.js";
 
-    const MyComponent = defineAsyncComponent({
-      loader: () => {
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          reject({
-            render() {
-              return () => h('div', 'hello world')
-            }
-          })
-        }, 3000)
-      })
-    },
-    delay: 300,
-    timeout: 1000,
-    loadingComponent: {
-      render: () => h('div', 'loading')
-    },
-    errorComponent: {
-      render: () => h('div', 'error')
-    },
-  })
-
-    render(h(MyComponent), app)
-    
-
+      import { 
+        Fragment as _Fragment,
+        openBlock as _openBlock,
+        createElementBlock as _createElementBlock,
+        toDisplayString as _toDisplayString,
+        createElementVNode as _createElementVNode,
+        render
+      } from './runtime-dom.js'
+ const MyComponent = {
+        setup() {
+          const state = reactive({ name: 'world', flag: true, age: 1, fruits: 10 });
+          setTimeout(() => {
+            state.fruits = 5
+          }, 1000);
+          return {
+            ...toRefs(state),
+          };
+        },
+        render(_ctx) {
+          // proxyRefs
+          const vnode =
+            (_openBlock(), _createElementBlock("div", null, [
+    (_openBlock(), _createElementBlock(_Fragment, null, _renderList(3, (item) => {
+      return _createElementVNode("div", null, _toDisplayString(item), 1 /* TEXT */)
+    }), 64 /* STABLE_FRAGMENT */)),
+    _createElementVNode("span", null, " 111 ")
+  ]))
+          console.log(vnode);
+          return vnode;
+        },
+      };
+      render(h(MyComponent), app);
   </script>
 </body>
 </html>

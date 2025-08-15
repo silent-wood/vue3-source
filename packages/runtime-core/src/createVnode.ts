@@ -26,7 +26,7 @@ export function isSameVnode(n1, n2) {
 // a = a & 3 // 3的二进制是 0011 => 等同于 按位与赋值 a &= 3
 // a = 1                   0001 => 1
 
-export function createVnode(type, props, children) {
+export function createVnode(type, props, children, patchFlag?) {
   const shapeFlag = 
     isString(type) ? ShapeFlags.ELEMENT // 元素
     : isTeleport(type) ? ShapeFlags.TELEPORT // Teloport
@@ -41,7 +41,8 @@ export function createVnode(type, props, children) {
     key: props?.key,
     el: null, // 虚拟节点对应的真实节点
     shapeFlag,
-    ref: props?.ref
+    ref: props?.ref,
+    patchFlag
   }
   if (Array.isArray(children)) {
     // vnode.shapeFlag = vnode.shapeFlag | ShapeFlags.ARRAY_CHILDREN; // 虚拟节点类型
@@ -54,3 +55,38 @@ export function createVnode(type, props, children) {
   }
   return vnode
 }
+
+export let currentBlock = null;
+export function openBlock(disableTracking) {
+  if (!disableTracking) {
+    currentBlock = []; // 用于收集动态节点
+  }
+}
+
+export function closeBlock() {
+  currentBlock = null
+}
+
+export function setupBlock(vnode) {
+  vnode.dynamicChildren = currentBlock  // 当前elementBlock会收集子节点，用当前block来收集
+  closeBlock();
+  return vnode
+}
+
+// block 有收集虚拟节点的能力
+export function createElementBlock(type, props, children, patchFlag?) {
+  const vnode = createVnode(type, props, children, patchFlag);
+  return setupBlock(vnode)
+}
+
+export function toDisplayString(value) {
+  return isString(value) 
+    ? value 
+    : value === null 
+    ? "" 
+    : isObject(value) 
+    ? JSON.stringify(value) 
+    : String(value)
+}
+
+export { createVnode as createElementVNode }
