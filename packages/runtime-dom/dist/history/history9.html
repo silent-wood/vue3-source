@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="root"></div>
+  <script type="module">
+    import { ref, render, Fragment, h, Teleport, provide, inject, Transition } from '/node_modules/vue/dist/vue.runtime.esm-browser.js'
+    // import { render, h, Text, Fragment, ref, effect, Teleport, provide, inject, Transition } from './runtime-dom.js'
+    
+    const props = {
+      onBeforeEnter(el) {
+        console.log('before enter')
+      },
+      onEnter(el) {
+        console.log('onEnter')
+      },
+      onAfterEnter(el) {
+console.log('onAfterEnter')
+      },
+      onEnterCancelled(el) {
+console.log('onEnterCancelled')
+      },
+      onBeforeLeave(el) {
+console.log('onBeforeLeave')
+      },
+      onLeave(el) {
+console.log('onLeave')
+      },
+      onAfterLeave(el) {
+console.log('onAfterLeave')
+      },
+      onLeaveCancelled(el) {
+        console.log('onLeaveCancelled')
+      }
+    }
+    
+    render(h(Transition, props, {
+      default: () => h('p', { style: { width: '100px', height: '100px', backgroundColor: 'green' } }, 'hello' )
+    }), app)
+
+    setTimeout(() => {
+      render(h(Transition, props, {
+        default: () => h('p', { style: { width: '100px', height: '100px', backgroundColor: 'red' } }, 'world' )
+      }), app)
+    }, 2000)
+
+  </script>
+</body>
+</html>

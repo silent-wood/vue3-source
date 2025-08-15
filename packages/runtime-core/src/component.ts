@@ -18,7 +18,8 @@ export function createComponentInstance (vnode, parent) {
     parent,
     setupState: {}, // setup返回的对象
     provides: parent ? parent.provides : Object.create(null), // 父组件的provides
-    exposed: {} // 暴露给用户访问的属性
+    exposed: {}, // 暴露给用户访问的属性
+    ctx: {} as any
   }
 
   return instance;

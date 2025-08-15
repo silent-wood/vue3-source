@@ -9,12 +9,42 @@
   <div id="app"></div>
   <div id="root"></div>
   <script type="module">
-    // import { ref, render, Fragment, h, Teleport, provide, inject, onBeforeMount, onMounted, onUpdated, onBeforeUpdate, onUnmounted, onBeforeUnmount } from '/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-browser.js'
-    import { render, h, Text, Fragment, ref, effect, Teleport, provide, inject, onBeforeMount, onMounted, onUpdated, onBeforeUpdate, onUnmounted, onBeforeUnmount } from './runtime-dom.js'
-    function functional(props) {
-      return h('p', props.msg)
+    import { ref, render, Fragment, h, Teleport, provide, inject, Transition, KeepAlive, onMounted } from '/node_modules/vue/dist/vue.runtime.esm-browser.js'
+    // import { render, h, Text, Fragment, ref, effect, Teleport, provide, inject, Transition } from './runtime-dom.js'
+    
+    const A1 = {
+      setup() {
+        onMounted(() => console.log('a1 mounted'))
+        return () => h('div', 'a1')
+      }
     }
-    render(h(functional, { msg: 'hello world' }), app)
+    const A2 = {
+      setup() {
+        onMounted(() => console.log('a2 mounted'))
+        return () => h('div', 'a2')
+      }
+    }
+    const A3 = {
+      setup() {
+        onMounted(() => console.log('a3 mounted'))
+        return () => h('div', 'a3')
+      }
+    }
+
+    render(h(KeepAlive, h(A1)), app)
+
+    setTimeout(() => {
+      render(h(KeepAlive, h(A2)), app)
+      setTimeout(() => {
+        render(h(KeepAlive, h(A3)), app)
+        setTimeout(() => {
+          render(h(KeepAlive, h(A2)), app)
+          setTimeout(() => {
+            render(h(KeepAlive, h(A1)), app)
+        }, 2000)
+      }, 1000)
+    }, 1000)
+  },1000)
 
   </script>
 </body>

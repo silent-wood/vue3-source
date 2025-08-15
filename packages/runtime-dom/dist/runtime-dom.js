@@ -618,8 +618,9 @@ function createComponentInstance(vnode, parent) {
     // setup返回的对象
     provides: parent ? parent.provides : /* @__PURE__ */ Object.create(null),
     // 父组件的provides
-    exposed: {}
+    exposed: {},
     // 暴露给用户访问的属性
+    ctx: {}
   };
   return instance;
 }
@@ -770,6 +771,74 @@ function invokeArray(fns) {
   }
 }
 
+// packages/runtime-core/src/components/KeepAlive.ts
+var KeepAlive = {
+  __isKeepAlive: true,
+  props: {
+    max: Number
+  },
+  setup(props, { slots }) {
+    const { max } = props;
+    const keys = /* @__PURE__ */ new Set();
+    const cache = /* @__PURE__ */ new Map();
+    let pendingCacheKey = null;
+    const instance = getCurrentInstance();
+    const cacheSubTree = () => {
+      cache.set(pendingCacheKey, instance.subTree);
+    };
+    const { move, createElement, unmount: _unmount } = instance.ctx.renderer;
+    function reset(vnode) {
+      let shapeFlag = vnode.shapeFlag;
+      if (shapeFlag & 512 /* COMPONENT_KEPT_ALIVE */) {
+        shapeFlag -= 512 /* COMPONENT_KEPT_ALIVE */;
+      }
+      if (shapeFlag & 256 /* COMPONENT_SHOULD_KEEP_ALIVE */) {
+        shapeFlag -= 256 /* COMPONENT_SHOULD_KEEP_ALIVE */;
+      }
+      vnode.shapeFlag = shapeFlag;
+    }
+    function unmount(vnode) {
+      reset(vnode);
+      _unmount(vnode);
+    }
+    function purneCacheEntry(key) {
+      keys.delete(key);
+      const cached = cache.get(key);
+      unmount(cached);
+    }
+    instance.ctx.activate = function(vnode, container, anchor) {
+      move(vnode, container, anchor);
+    };
+    const storageContent = createElement("div");
+    instance.ctx.deactivate = function(vnode) {
+      move(vnode, storageContent, null);
+    };
+    onMounted(cacheSubTree);
+    onUpdated(cacheSubTree);
+    return () => {
+      const vnode = slots.default();
+      const comp = vnode.type;
+      const key = vnode.key == null ? comp : vnode.key;
+      const cacheVNode = cache.get(key);
+      pendingCacheKey = key;
+      if (cacheVNode) {
+        vnode.component = cacheVNode.component;
+        vnode.shapeFlag |= 512 /* COMPONENT_KEPT_ALIVE */;
+        keys.delete(key);
+        keys.add(key);
+      } else {
+        keys.add(key);
+        if (max && keys.size > max) {
+          purneCacheEntry(keys.values().next().value);
+        }
+      }
+      vnode.shapeFlag |= 256 /* COMPONENT_SHOULD_KEEP_ALIVE */;
+      return vnode;
+    };
+  }
+};
+var isKeepAlive = (value) => value.type.__isKeepAlive;
+
 // packages/runtime-core/src/renderer.ts
 function createRenderer(renderOptions2) {
   const {
@@ -800,7 +869,7 @@ function createRenderer(renderOptions2) {
     }
   };
   const mountElement = (vnode, container, anchor, parentComponent) => {
-    const { type, props, children, shapeFlag } = vnode;
+    const { type, props, children, shapeFlag, transition } = vnode;
     const el = vnode.el = hostCreateElement(type);
     if (props) {
       for (const key in props) {
@@ -812,22 +881,37 @@ function createRenderer(renderOptions2) {
     } else if (shapeFlag & 16 /* ARRAY_CHILDREN */) {
       mountChildren(children, el, anchor, parentComponent);
     }
+    if (transition) {
+      transition.beforeEnter(el);
+    }
     hostInsert(el, container, anchor);
+    if (transition) {
+      transition.enter(el);
+    }
   };
   function unmount(vnode, parentComponent) {
-    const { shapeFlag, type, component } = vnode;
+    const { shapeFlag, type, component, transition, el } = vnode;
+    const performRemove = () => {
+      hostRemove(vnode.el);
+    };
     const { bum, um } = component || {};
     if (bum) {
       invokeArray(bum);
     }
-    if (type === Fragment) {
+    if (vnode.shapeFlag & 256 /* COMPONENT_SHOULD_KEEP_ALIVE */) {
+      parentComponent.ctx.deactivate(vnode);
+    } else if (type === Fragment) {
       unmountChildren(vnode.children, parentComponent);
     } else if (shapeFlag & 6 /* COMPONENT */) {
-      unmount(vnode.component.subTree, parentComponent);
+      unmount(component.subTree, parentComponent);
     } else if (shapeFlag & 64 /* TELEPORT */) {
       vnode.type.remove(vnode, unmount);
     } else {
-      hostRemove(vnode.el);
+      if (transition) {
+        transition.leave(el, performRemove);
+      } else {
+        performRemove();
+      }
     }
     if (um) {
       invokeArray(um);
@@ -987,6 +1071,7 @@ function createRenderer(renderOptions2) {
     instance.next = null;
     instance.vnode = next;
     updateProps(instance, instance.props, next.props);
+    Object.assign(instance.slots, next.children);
   };
   function renderComponent(instance) {
     const { render: render3, vnode, proxy, attrs, props } = instance;
@@ -1026,10 +1111,21 @@ function createRenderer(renderOptions2) {
   };
   const mountComponent = (vnode, container, anchor, parentComponent) => {
     const instance = vnode.component = createComponentInstance(vnode, parentComponent);
+    if (isKeepAlive(vnode)) {
+      instance.ctx.renderer = {
+        createElement: hostCreateElement,
+        // keepalive中需要创建一个div,来缓存dom
+        move(vnode2, container2) {
+          hostInsert(vnode2.component.subTree.el, container2);
+        },
+        unmount
+        // 如果组件切换需要将现在容器中的元素移除
+      };
+    }
     setupComponent(instance);
     setupRenderEffect(instance, container, anchor, parentComponent);
   };
-  const hasPropsChange = (prevProps, nextProps) => {
+  const hasPropsChange = (prevProps, nextProps = {}) => {
     const nextKeys = Object.keys(nextProps);
     if (nextKeys.length !== Object.keys(prevProps).length) return true;
     for (let i = 0; i < nextKeys.length; i++) {
@@ -1066,7 +1162,11 @@ function createRenderer(renderOptions2) {
   };
   const processComponent = (n1, n2, container, anchor, parentComponent) => {
     if (n1 === null) {
-      mountComponent(n2, container, anchor, parentComponent);
+      if (n2.shapeFlag & 512 /* COMPONENT_KEPT_ALIVE */) {
+        parentComponent.ctx.renderer.activate(n2, container, anchor);
+      } else {
+        mountComponent(n2, container, anchor, parentComponent);
+      }
     } else {
       updateComponent(n1, n2);
     }
@@ -1175,6 +1275,93 @@ function inject(key, defaultValue) {
   }
 }
 
+// packages/runtime-core/src/components/Transition.ts
+function nextFrame(fn) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(fn);
+  });
+}
+function resolveTransitionProps(props) {
+  const {
+    name = "v",
+    enterFromClass = `${name}-enter-from`,
+    enterActiveClass = `${name}-enter-active`,
+    enterToClass = `${name}-enter-to`,
+    leaveFromClass = `${name}-leave-from`,
+    leaveActiveClass = `${name}-leave-active`,
+    leaveToClass = `${name}-leave-to`,
+    onBeforeEnter,
+    onEnter,
+    onLeave
+  } = props;
+  return {
+    onBeforeEnter(el) {
+      onBeforeEnter && onBeforeEnter(el);
+      el.classList.add(enterFromClass);
+      el.classList.add(enterActiveClass);
+    },
+    onEnter(el, done) {
+      const resolve = () => {
+        el.classList.remove(enterToClass);
+        el.classList.remove(enterActiveClass);
+        done && done();
+      };
+      onEnter && onEnter(el, resolve);
+      nextFrame(() => {
+        el.classList.remove(enterFromClass);
+        el.classList.add(enterToClass);
+        if (!onEnter || onEnter.length <= 1) {
+          el.addEventListener("transitionEnd", resolve);
+        }
+      });
+    },
+    onLeave(el, done) {
+      const resolve = () => {
+        el.classList.remove(leaveActiveClass);
+        el.classList.remove(leaveToClass);
+        done && done();
+      };
+      onLeave && onLeave(el, resolve);
+      el.classList.add(leaveFromClass);
+      document.body.offsetHeight;
+      el.classList.add(leaveActiveClass);
+      nextFrame(() => {
+        el.classList.remove(leaveFromClass);
+        el.classList.add(leaveToClass);
+        if (!onLeave || onLeave.length <= 1) {
+          el.addEventListener("transitionend", resolve);
+        }
+      });
+    }
+  };
+}
+function Transition(props, { slots }) {
+  debugger;
+  return h(BaseTranstionImpl, resolveTransitionProps(props), slots);
+}
+var BaseTranstionImpl = {
+  // 真正的组件 只需要渲染难的时候调用封装后的钩子即可
+  props: {
+    onBeforeEnter: Function,
+    onEnter: Function,
+    onLeave: Function
+  },
+  setup(props, { slots }) {
+    return () => {
+      const vnode = slots.default && slots.default();
+      if (!vnode) {
+        return;
+      }
+      vnode.transition = {
+        beforeEnter: props.onBeforeEnter,
+        enter: props.onEnter,
+        leave: props.onLeave
+      };
+      return vnode;
+    };
+  }
+};
+
 // packages/runtime-dom/src/index.ts
 var renderOptions = Object.assign({ patchProp }, nodeOps);
 var render = (vnode, container) => {
@@ -1182,10 +1369,12 @@ var render = (vnode, container) => {
 };
 export {
   Fragment,
+  KeepAlive,
   LifeCycle,
   ReactiveEffect,
   Teleport,
   Text,
+  Transition,
   activeEffect,
   computed,
   createComponentInstance,
@@ -1197,6 +1386,7 @@ export {
   h,
   inject,
   invokeArray,
+  isKeepAlive,
   isReactive,
   isRef,
   isSameVnode,
@@ -1213,6 +1403,7 @@ export {
   reactive,
   ref,
   render,
+  resolveTransitionProps,
   setCurrentInstance,
   setupComponent,
   toReactive,

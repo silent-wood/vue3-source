@@ -5,6 +5,7 @@ import { isRef, ReactiveEffect } from "@vue/reactivity";
 import { queueJob } from "./scheduler";
 import { createComponentInstance, setupComponent } from "./component";
 import { invokeArray } from "./apiLifeCycle";
+import { isKeepAlive } from "./components/KeepAlive";
 
 export function createRenderer(renderOptions) {
     const {
@@ -48,7 +49,7 @@ export function createRenderer(renderOptions) {
    * @param container 容器
    */
   const mountElement = (vnode, container, anchor, parentComponent) => {
-    const { type, props, children, shapeFlag } = vnode;
+    const { type, props, children, shapeFlag, transition } = vnode;
     // 创建节点，同时把真实DOM和虚拟DOM关联起来
     const el = (vnode.el = hostCreateElement(type));
     // 设置属性
@@ -64,8 +65,17 @@ export function createRenderer(renderOptions) {
     } else if(shapeFlag & ShapeFlags.ARRAY_CHILDREN) { // 子节点
       mountChildren(children, el, anchor, parentComponent)
     }
+
+    if (transition) {
+      transition.beforeEnter(el)
+    }
+
     // 挂载元素
     hostInsert(el, container, anchor);
+
+    if (transition) {
+      transition.enter(el);
+    }
   }
 
   /**
@@ -73,19 +83,30 @@ export function createRenderer(renderOptions) {
    * @param vnode 需要卸载的虚拟节点
    */
   function unmount (vnode, parentComponent) {
-    const { shapeFlag, type, component } = vnode;
+    const { shapeFlag, type, component, transition, el } = vnode;
+    const performRemove = () => {
+      hostRemove(vnode.el);
+    };
     const { bum, um } = component || {};
+
     if (bum) {
       invokeArray(bum)
     }
-    if (type === Fragment) { // 卸载Fragment
+    if (vnode.shapeFlag & ShapeFlags.COMPONENT_SHOULD_KEEP_ALIVE) {
+       // 走keepalive的失活逻辑
+      parentComponent.ctx.deactivate(vnode);
+    } else if (type === Fragment) { // 卸载Fragment
       unmountChildren(vnode.children, parentComponent)
     } else if(shapeFlag & ShapeFlags.COMPONENT) { // 卸载组件
-      unmount(vnode.component.subTree, parentComponent)
+      unmount(component.subTree, parentComponent)
     } else if(shapeFlag & ShapeFlags.TELEPORT) { // 卸载Teleport
       vnode.type.remove(vnode, unmount)
     } else {
-      hostRemove(vnode.el)
+      if (transition) {
+        transition.leave(el, performRemove);
+      } else {
+        performRemove();
+      }
     }
     
     if (um) {
@@ -326,6 +347,8 @@ export function createRenderer(renderOptions) {
     instance.vnode = next;
     // 更新props
     updateProps(instance, instance.props, next.props);
+    // 更新插槽
+    Object.assign(instance.slots, next.children)
   }
 
   // 渲染组件
@@ -376,13 +399,24 @@ export function createRenderer(renderOptions) {
   const mountComponent = (vnode, container, anchor, parentComponent) => {
     // 1、创建组件实例,并把组件实例放到虚拟节点的component上
     const instance = (vnode.component = createComponentInstance(vnode, parentComponent)); // 组件实例关联
+    
+    if(isKeepAlive(vnode)) {
+      instance.ctx.renderer = {
+        createElement: hostCreateElement, // keepalive中需要创建一个div,来缓存dom
+        move(vnode, container) { // 需要吧之前渲染的dom房到容器中
+          hostInsert(vnode.component.subTree.el, container)
+        },
+        unmount // 如果组件切换需要将现在容器中的元素移除
+      }
+    }
+
     // 2、给实例的属性赋值
     setupComponent(instance)
     // 3、创建一个effect，当组件更新时重新执行effect
     setupRenderEffect(instance, container, anchor, parentComponent)
   }
 
-  const hasPropsChange = (prevProps, nextProps) => {
+  const hasPropsChange = (prevProps, nextProps = {}) => {
     const nextKeys = Object.keys(nextProps);
     if (nextKeys.length !== Object.keys(prevProps).length) return true
     for(let i = 0; i < nextKeys.length; i++) {
@@ -438,7 +472,11 @@ export function createRenderer(renderOptions) {
 
   const processComponent = (n1, n2, container, anchor, parentComponent) => {
     if (n1 === null) { // 组件渲染
-      mountComponent(n2, container, anchor, parentComponent);
+      if (n2.shapeFlag & ShapeFlags.COMPONENT_KEPT_ALIVE) { // keepalive组件
+        parentComponent.ctx.renderer.activate(n2, container, anchor)
+      } else {
+        mountComponent(n2, container, anchor, parentComponent);
+      }
     } else { // 组件更新
       updateComponent(n1, n2);
   }
