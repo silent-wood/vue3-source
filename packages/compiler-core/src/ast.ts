@@ -31,3 +31,40 @@ export enum NodeTypes {
   JS_SEQUENCE_EXPRESSION,
   JS_RETURN_STATEMENT,
 }
+
+export function createCallExpression(context, args) {
+  let name = context.helper(CREATE_TEXT_VNODE);
+
+  return {
+    // createTextVnode()
+    type: NodeTypes.JS_CALL_EXPRESSION,
+    arguments: args, // createTextVnode(child,1)
+    callee: name,
+  };
+}
+export function createVnodeCall(context, tag, props, children) {
+  // createElementVnode()
+  let name;
+
+  if (tag !== Fragment) {
+    name = context.helper(CREATE_ELEMENT_VNODE);
+  }
+
+  return {
+    // createTextVnode()
+    type: NodeTypes.VNODE_CALL,
+    callee: name,
+    tag,
+    props,
+    children,
+  };
+}
+
+export function createObjectExpression(properies) {
+  // {a:1,b:2,c:3}
+
+  return {
+    type: NodeTypes.JS_OBJECT_EXPRESSION,
+    properies,
+  };
+}

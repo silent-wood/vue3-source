@@ -1,5 +1,20 @@
 import { NodeTypes } from "./ast";
-import { attrNameReg, attrReg, spaceReg, tagReg } from "./tagReg";
+import { spaceReg, tagReg } from "./tagReg";
+
+function getCursor(context) {
+  let { line, column, offset } = context;
+  return { line, column, offset };
+}
+
+function getSelection(context, start, e?) {
+  let end = e || getCursor(context);
+  // eslint 可以根据 start，end找到要报错的位置
+  return {
+    start,
+    end,
+    source: context.originalSource.slice(start.offset, end.offset),
+  };
+}
 
 function createParserContext(content: string) {
 
@@ -31,6 +46,22 @@ function parseTextData(context, endIndex) {
   // 删除文本内容
   advanceBy(context, endIndex);
   return content
+}
+
+function advancePositionMutation(context, c, endIndex) {
+  let linesCount = 0; // 第几行
+  let linePos = -1; // 换行的位置信息
+
+  for (let i = 0; i < endIndex; i++) {
+    if (c.charCodeAt(i) == 10) {
+      linesCount++;
+      linePos = i;
+    }
+  }
+  context.offset += endIndex;
+  context.line += linesCount;
+  context.column =
+    linePos == -1 ? context.column + endIndex : endIndex - linePos;
 }
 
 // 解析文本
@@ -146,8 +177,33 @@ function parseElement(context) {
 }
 
 // 处理属性
-function parseInterpolation(context) {
 
+function parseInterpolation(context) {
+  const start = getCursor(context);
+  const closeIndex = context.source.indexOf("}}", 2);
+  advanceBy(context, 2); // 去掉开头 {{
+  const innerStart = getCursor(context);
+  const innerEnd = getCursor(context);
+  const preTrimContent = parseTextData(context, closeIndex - 2);
+  const content = preTrimContent.trim(); // 表达式中的变量
+  // 获取  {{   name   }}去空格
+  const startOffset = preTrimContent.indexOf(content);
+  if (startOffset > 0) {
+    advancePositionMutation(innerStart, preTrimContent, startOffset);
+  }
+  const endOffset = startOffset + content.length;
+  advancePositionMutation(innerEnd, preTrimContent, endOffset);
+  advanceBy(context, 2);
+  //    name   }}
+  return {
+    type: NodeTypes.INTERPOLATION,
+    content: {
+      type: NodeTypes.SIMPLE_EXPRESSION,
+      isStatic: false,
+      isConstant: false,
+      content,
+    },
+  };
 }
 
 function parseChildren(context: any) {
